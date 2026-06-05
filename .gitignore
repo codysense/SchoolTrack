@@ -1,0 +1,17 @@
+# Dependencies
+Backend/node_modules/
+Frontend/node_modules/
+
+# Environment files
+.env
+Backend/.env
+Frontend/.env
+
+# Logs
+*.log
+
+# Backups
+backups/
+
+# VS Code (optional)
+.vscode/

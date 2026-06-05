@@ -1,0 +1,228 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+}
+
+// Users 
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(ADMIN)
+  createdAt DateTime @default(now())
+  teacher   Teacher?
+  auditLogs AuditLog[]
+}
+
+//School
+model School {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  phone     String?
+  email     String?
+  motto     String?
+  logoUrl   String?
+  website   String?
+  accountName String?
+  accountNumber String?
+  bankName String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Sessions & Terms 
+// A Session = academic year e.g. "2024/2025"
+// A Term    = one of three periods within a session e.g. "First Term"
+
+model Session {
+  id        String   @id @default(cuid())
+  name      String   @unique   // e.g. "2024/2025"
+  isCurrent Boolean  @default(false)
+  createdAt DateTime @default(now())
+  terms     Term[]
+}
+
+model Term {
+  id        String   @id @default(cuid())
+  name      String                        // "First Term" | "Second Term" | "Third Term"
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  isCurrent Boolean  @default(false)
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime @default(now())
+
+  payments            Payment[]
+  optionalFeeAssigns  OptionalFeeAssign[]
+  results             Result[]
+
+  @@unique([sessionId, name])
+}
+
+// Teachers 
+
+model Teacher {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classId     String?
+  class       Class?   @relation(fields: [classId], references: [id])
+  subjectName String?
+  createdAt   DateTime @default(now())
+}
+
+//Classes
+
+model Class {
+  id        String    @id @default(cuid())
+  className String    @unique
+  feeAmount Float
+  createdAt DateTime  @default(now())
+  students  Student[]
+  subjects  Subject[]
+  teachers  Teacher[]
+}
+
+//  Students 
+
+model Student {
+  id              String   @id @default(cuid())
+  admissionNumber String   @unique
+  name            String
+  parentPhone     String
+  classId         String
+  class           Class    @relation(fields: [classId], references: [id])
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  payments            Payment[]
+  results             Result[]
+  optionalFeeAssigns  OptionalFeeAssign[]
+  optionalFeePayments OptionalFeePayment[]
+}
+
+// Payments (school fees) 
+
+model Payment {
+  id            String   @id @default(cuid())
+  studentId     String
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  termId        String
+  term          Term     @relation(fields: [termId], references: [id])
+  amountPaid    Float
+  currentBalance Float?
+  paymentMethod String
+  note          String?
+  recordedById  String?  // User.id who recorded this
+  date          DateTime @default(now())
+  createdAt     DateTime @default(now())
+}
+
+// Optional Fees 
+
+model OptionalFee {
+  id          String              @id @default(cuid())
+  name        String              @unique
+  amount      Float
+  description String?
+  createdAt   DateTime            @default(now())
+  assigns     OptionalFeeAssign[]
+}
+
+model OptionalFeeAssign {
+  id            String             @id @default(cuid())
+  studentId     String
+  student       Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  optionalFeeId String
+  optionalFee   OptionalFee        @relation(fields: [optionalFeeId], references: [id], onDelete: Cascade)
+  termId        String
+  term          Term               @relation(fields: [termId], references: [id])
+  createdAt     DateTime           @default(now())
+  payments      OptionalFeePayment[]
+
+  @@unique([studentId, optionalFeeId, termId])
+}
+
+model OptionalFeePayment {
+  id                  String            @id @default(cuid())
+  studentId           String
+  student             Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  optionalFeeAssignId String
+  optionalFeeAssign   OptionalFeeAssign @relation(fields: [optionalFeeAssignId], references: [id], onDelete: Cascade)
+  amountPaid          Float
+  paymentMethod       String
+  note                String?
+  recordedById        String?
+  date                DateTime          @default(now())
+  createdAt           DateTime          @default(now())
+}
+
+//Subjects & Results 
+
+model Subject {
+  id      String   @id @default(cuid())
+  name    String
+  classId String
+  class   Class    @relation(fields: [classId], references: [id])
+  results Result[]
+
+  @@unique([name, classId])
+}
+
+model Result {
+  id           String   @id @default(cuid())
+  studentId    String
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId    String
+  subject      Subject  @relation(fields: [subjectId], references: [id])
+  termId       String
+  term         Term     @relation(fields: [termId], references: [id])
+  testScore     Float?
+  examScore     Float?
+  TotalScore    Float?
+  //score         Float
+  recordedById String?
+  createdAt    DateTime @default(now())
+
+  @@unique([studentId, subjectId, termId])
+}
+
+//Audit Log
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName   String   // snapshot in case user is deleted
+  userRole   String
+  action     String   // CREATE | UPDATE | DELETE | LOGIN
+  entity     String   // Student | Payment | Result | Class | etc.
+  entityId   String?
+  detail     String?  // human-readable summary
+  metadata   Json?    // full payload for debugging
+  ip         String?
+  createdAt  DateTime @default(now())
+}
+
+//Notifications 
+
+model NotificationLog {
+  id        String   @id @default(cuid())
+  phone     String
+  message   String
+  type      String
+  status    String
+  createdAt DateTime @default(now())
+}
