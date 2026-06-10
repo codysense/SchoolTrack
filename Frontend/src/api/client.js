@@ -1,36 +1,53 @@
-const BASE = import.meta.env.VITE_API_URL || '/api'
+const BASE = import.meta.env.VITE_API_URL || "/api";
+
+console.log("API Base URL:", BASE);
 
 export async function api(path, options = {}) {
-  const token = localStorage.getItem('token')
+  const token = localStorage.getItem("token");
+
+  const isFormData = options.body instanceof FormData;
 
   const res = await fetch(`${BASE}${path}`, {
     headers: {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` })
-    },
-    ...options,
-    body: options.body ? JSON.stringify(options.body) : undefined
-  })
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
 
-  // Handle auth expiry globally
+      ...(token && {
+        Authorization: `Bearer ${token}`,
+      }),
+
+      ...(options.headers || {}),
+    },
+
+    ...options,
+
+    body: options.body
+      ? isFormData
+        ? options.body
+        : JSON.stringify(options.body)
+      : undefined,
+  });
+
   if (res.status === 401) {
-    localStorage.clear()
-    window.location.href = '/login'
-    throw new Error('Session expired')
+    localStorage.clear();
+    window.location.href = "/login";
+    throw new Error("Session expired");
   }
 
-  // Try to parse JSON — fall back to status text
-  let data
-  const contentType = res.headers.get('content-type') || ''
-  if (contentType.includes('application/json')) {
-    data = await res.json()
+  let data;
+
+  const contentType = res.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    data = await res.json();
   } else {
-    data = { error: await res.text() || res.statusText }
+    data = {
+      error: (await res.text()) || res.statusText,
+    };
   }
 
   if (!res.ok) {
-    throw new Error(data?.error || `Request failed (${res.status})`)
+    throw new Error(data?.error || `Request failed (${res.status})`);
   }
 
-  return data
+  return data;
 }

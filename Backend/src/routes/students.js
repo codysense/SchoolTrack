@@ -2,6 +2,7 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { authenticate, adminOnly, staffOnly } from "../middleware/auth.js";
 import { log } from "../services/audit.service.js";
+import { uploadStudentPhoto } from "../middleware/uploadStudentPhoto.js";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -37,7 +38,7 @@ router.get("/", staffOnly, async (req, res) => {
     },
     orderBy: { name: "asc" },
   });
-
+  console.log("Fetched students:", students);
   const data = students.map((s) => {
     const schoolPaid = s.payments.reduce((sum, p) => sum + p.amountPaid, 0);
     const optExpected = s.optionalFeeAssigns.reduce(
@@ -83,7 +84,7 @@ router.get("/:id", staffOnly, async (req, res) => {
       },
     },
   });
-  if (!student) return res.status(404).json({ error: "Not found" });
+  if (!student) return res.status(404).json({ error: "Student not found" });
 
   const schoolPaid = student.payments.reduce((s, p) => s + p.amountPaid, 0);
   const optExpected = student.optionalFeeAssigns.reduce(
@@ -158,59 +159,245 @@ router.get("/:id/payments", staffOnly, async (req, res) => {
 });
 
 // POST create student
-router.post("/", adminOnly, async (req, res) => {
-  let { name, parentPhone, classId, admissionNumber } = req.body;
-  if (!admissionNumber?.trim())
-    admissionNumber = await generateAdmissionNumber();
+router.post(
+  "/",
+  adminOnly,
+  uploadStudentPhoto.single("passportPhoto"),
+  async (req, res) => {
+    const passportPhoto = req.file
+      ? `/uploads/students/${req.file.filename}`
+      : null;
+    let {
+      admissionNumber,
+      name,
 
-  try {
-    const student = await prisma.student.create({
+      // Parent Information
+      parentName,
+      parentPhone,
+      parentEmail,
+      parentAddress,
+
+      // Academic Information
+      classId,
+      entryClass,
+      admissionDate,
+
+      // Student Information
+      gender,
+      dateOfBirth,
+      sportHouse,
+
+      // Health Information
+      bloodGroup,
+      genotype,
+
+      // Physical Information
+      height,
+      weight,
+
+      // Media
+      // passportPhoto,
+    } = req.body;
+
+    if (!admissionNumber?.trim()) {
+      admissionNumber = await generateAdmissionNumber();
+    }
+
+    try {
+      const student = await prisma.student.create({
+        data: {
+          admissionNumber: admissionNumber.trim(),
+          name: name?.trim(),
+
+          // Parent Information
+          parentName: parentName?.trim() || null,
+          parentPhone: parentPhone?.trim(),
+          parentEmail: parentEmail?.trim() || null,
+          parentAddress: parentAddress?.trim() || null,
+
+          // Academic Information
+          classId,
+          entryClass: entryClass?.trim() || null,
+          admissionDate: admissionDate ? new Date(admissionDate) : null,
+
+          // Student Information
+          gender: gender || null,
+          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+          sportHouse: sportHouse?.trim() || null,
+
+          // Health Information
+          bloodGroup: bloodGroup?.trim() || null,
+          genotype: genotype?.trim() || null,
+
+          // Physical Information
+          height:
+            height !== undefined && height !== null && height !== ""
+              ? parseFloat(height)
+              : null,
+
+          weight:
+            weight !== undefined && weight !== null && weight !== ""
+              ? parseFloat(weight)
+              : null,
+
+          // Media
+          passportPhoto: passportPhoto,
+        },
+        include: {
+          class: true,
+        },
+      });
+
+      await log({
+        req,
+        action: "CREATE",
+        entity: "Student",
+        entityId: student.id,
+        detail: `Registered student "${student.name}" (${student.admissionNumber}) in ${student.class.className}`,
+      });
+
+      res.status(201).json(student);
+    } catch (e) {
+      if (e.code === "P2002") {
+        return res.status(409).json({
+          error: "Admission number already exists",
+        });
+      }
+
+      console.error(e);
+
+      return res.status(500).json({
+        error: "Failed to create student",
+      });
+    }
+  },
+);
+
+// router.post("/", adminOnly, async (req, res) => {
+//   let { name, parentPhone, classId, admissionNumber } = req.body;
+//   if (!admissionNumber?.trim())
+//     admissionNumber = await generateAdmissionNumber();
+
+//   try {
+//     const student = await prisma.student.create({
+//       data: {
+//         admissionNumber: admissionNumber.trim(),
+//         name,
+//         parentPhone,
+//         classId,
+//       },
+//       include: { class: true },
+//     });
+//     await log({
+//       req,
+//       action: "CREATE",
+//       entity: "Student",
+//       entityId: student.id,
+//       detail: `Registered student "${student.name}" (${student.admissionNumber}) in ${student.class.className}`,
+//     });
+//     res.status(201).json(student);
+//   } catch (e) {
+//     if (e.code === "P2002")
+//       return res.status(409).json({ error: "Admission number already exists" });
+//     throw e;
+//   }
+// });
+
+// PUT update student
+router.put(
+  "/:id",
+  adminOnly,
+  uploadStudentPhoto.single("passportPhoto"),
+  async (req, res) => {
+    const existingStudent = await prisma.student.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!existingStudent) {
+      return res.status(404).json({
+        error: "Student not found",
+      });
+    }
+
+    const passportPhoto = req.file
+      ? `/uploads/students/${req.file.filename}`
+      : existingStudent.passportPhoto;
+    const {
+      name,
+      parentPhone,
+      classId,
+      admissionNumber,
+      isActive,
+      parentName,
+      parentEmail,
+      parentAddress,
+      entryClass,
+      admissionDate,
+      gender,
+      dateOfBirth,
+      sportHouse,
+      bloodGroup,
+      genotype,
+      height,
+      weight,
+    } = req.body;
+    console.log("Updating student with data:", req.file);
+
+    const student = await prisma.student.update({
+      where: { id: req.params.id },
       data: {
-        admissionNumber: admissionNumber.trim(),
-        name,
-        parentPhone,
+        admissionNumber:
+          admissionNumber?.trim() || existingStudent.admissionNumber,
+        name: name?.trim(),
+
+        // Parent Information
+        parentName: parentName?.trim() || null,
+        parentPhone: parentPhone?.trim(),
+        parentEmail: parentEmail?.trim() || null,
+        parentAddress: parentAddress?.trim() || null,
+
+        // Academic Information
         classId,
+        entryClass: entryClass?.trim() || null,
+        admissionDate: admissionDate ? new Date(admissionDate) : null,
+
+        // Student Information
+        gender: gender || null,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+        sportHouse: sportHouse?.trim() || null,
+
+        // Health Information
+        bloodGroup: bloodGroup?.trim() || null,
+        genotype: genotype?.trim() || null,
+
+        // Physical Information
+        height:
+          height !== undefined && height !== null && height !== ""
+            ? parseFloat(height)
+            : null,
+
+        weight:
+          weight !== undefined && weight !== null && weight !== ""
+            ? parseFloat(weight)
+            : null,
+
+        // Media
+        passportPhoto: passportPhoto,
+
+        ...(isActive !== undefined && { isActive }),
       },
       include: { class: true },
     });
     await log({
       req,
-      action: "CREATE",
+      action: "UPDATE",
       entity: "Student",
       entityId: student.id,
-      detail: `Registered student "${student.name}" (${student.admissionNumber}) in ${student.class.className}`,
+      detail: `Updated student "${student.name}"`,
     });
-    res.status(201).json(student);
-  } catch (e) {
-    if (e.code === "P2002")
-      return res.status(409).json({ error: "Admission number already exists" });
-    throw e;
-  }
-});
-
-// PUT update student
-router.put("/:id", adminOnly, async (req, res) => {
-  const { name, parentPhone, classId, admissionNumber, isActive } = req.body;
-  const student = await prisma.student.update({
-    where: { id: req.params.id },
-    data: {
-      name,
-      parentPhone,
-      classId,
-      admissionNumber,
-      ...(isActive !== undefined && { isActive }),
-    },
-    include: { class: true },
-  });
-  await log({
-    req,
-    action: "UPDATE",
-    entity: "Student",
-    entityId: student.id,
-    detail: `Updated student "${student.name}"`,
-  });
-  res.json(student);
-});
+    res.json(student);
+  },
+);
 
 // DELETE student
 router.delete("/:id", adminOnly, async (req, res) => {

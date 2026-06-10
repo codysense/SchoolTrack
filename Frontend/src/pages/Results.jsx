@@ -64,6 +64,11 @@ export default function Results() {
   const [school, setSchool] = useState(null);
   const [focused, setFocused] = useState(null);
 
+  const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace("/api", "");
+
+  const getMediaUrl = (value) =>
+    value?.startsWith("http") ? value : `${API_BASE}${value}`;
+
   // Flatten all terms
   const allTerms = sessions.flatMap((s) =>
     s.terms.map((t) => ({
@@ -92,7 +97,7 @@ export default function Results() {
       .catch((e) => setError(e.message));
   }, []);
 
-  console.log("Selected", selected);
+  // console.log("Selected", selected);
 
   const loadReport = async (studentId, termId, classId) => {
     if (!termId) return;
@@ -226,6 +231,12 @@ export default function Results() {
     );
     loadReport(selected.id, selectedTermId);
   };
+  // const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace("/api", "");
+  // const photoPreview = form.passportPhoto
+  //   ? URL.createObjectURL(form.passportPhoto)
+  //   : form.existingPassportPhoto
+  //     ? `${API_BASE}${form.existingPassportPhoto}`
+  //     : null;
 
   const printReport = () => {
     if (!report || !selected) return;
@@ -254,7 +265,7 @@ export default function Results() {
       .join("");
 
     const logoHtml = school?.logoUrl
-      ? `<img src="${school.logoUrl}" style="height:64px;object-fit:contain;margin-bottom:6px"/>`
+      ? `<img src="${getMediaUrl(school.logoUrl)}" style="height:64px;object-fit:contain;margin-bottom:6px"/>`
       : '<div style="font-size:48px;line-height:1">🏫</div>';
 
     w.document.write(`<!DOCTYPE html><html><head>

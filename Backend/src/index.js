@@ -35,6 +35,7 @@ app.use("/api/setup", setupRoutes);
 app.use("/api/portal", portalRoutes);
 app.use("/api/sessions", sessionRoutes);
 app.use("/api/audit", auditRoutes);
+app.use("/uploads", express.static("uploads"));
 
 app.use((req, res) =>
   res.status(404).json({ error: `${req.method} ${req.path} not found` }),

@@ -49,6 +49,9 @@ export default function Setup() {
           motto: s.motto || "",
           logoUrl: s.logoUrl || "",
           website: s.website || "",
+          bankName: s.bankName || "",
+          accountName: s.accountName || "",
+          accountNumber: s.accountNumber || "",
         });
         setUsers(u);
         setClasses(c);
@@ -60,14 +63,29 @@ export default function Setup() {
     load();
   }, []);
 
+  // payload is built on submit to include any selected file
+
   // ── School info ───────────────────────────────────────────────────────────
   const saveSchool = async () => {
     setSchoolSaving(true);
     setSchoolMsg("");
     try {
+      const payload = new FormData();
+
+      Object.entries(schoolForm).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+          if (value instanceof File) {
+            // backend expects file field name 'logo'
+            payload.append("logo", value);
+          } else {
+            payload.append(key, value);
+          }
+        }
+      });
+
       const updated = await api("/setup/school", {
         method: "PUT",
-        body: schoolForm,
+        body: payload,
       });
       setSchool(updated);
       setSchoolMsg("School information saved successfully.");
@@ -133,19 +151,43 @@ export default function Setup() {
 
   if (loading) return <Spinner />;
 
-  const schoolField = (label, key, type = "text", placeholder = "") => (
-    <FormField key={key} label={label}>
-      <input
-        type={type}
-        value={schoolForm[key] || ""}
-        placeholder={placeholder}
-        onChange={(e) =>
-          setSchoolForm((p) => ({ ...p, [key]: e.target.value }))
-        }
-        style={inputStyle}
-      />
-    </FormField>
-  );
+  const schoolField = (label, key, type = "text", placeholder = "") => {
+    if (type === "file") {
+      return (
+        <FormField key={key} label={label}>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files[0];
+              setSchoolForm((p) => ({
+                ...p,
+                // store selected File under `logo` so we can append as 'logo'
+                logo: file,
+                // update preview/url field if needed
+                logoUrl: file ? URL.createObjectURL(file) : p.logoUrl,
+              }));
+            }}
+            style={inputStyle}
+          />
+        </FormField>
+      );
+    }
+
+    return (
+      <FormField key={key} label={label}>
+        <input
+          type={type}
+          value={schoolForm[key] || ""}
+          placeholder={placeholder}
+          onChange={(e) =>
+            setSchoolForm((p) => ({ ...p, [key]: e.target.value }))
+          }
+          style={inputStyle}
+        />
+      </FormField>
+    );
+  };
 
   return (
     <div>
@@ -220,7 +262,7 @@ export default function Setup() {
           {schoolField(
             "Logo URL",
             "logoUrl",
-            "url",
+            "file",
             "https://... (image link)",
           )}
           {schoolField(

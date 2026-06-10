@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useTerm } from "../context/TermContext";
 import Modal from "../components/Modal";
+import { fileUrl } from "../utils/fileUrl";
 import {
   Spinner,
   ErrorMessage,
@@ -12,9 +13,36 @@ import {
   inputStyle,
 } from "../components/ui";
 
-const empty = { name: "", parentPhone: "", classId: "", admissionNumber: "" };
+const empty = {
+  admissionNumber: "",
+  name: "",
+
+  parentName: "",
+  parentPhone: "",
+  parentEmail: "",
+  parentAddress: "",
+
+  classId: "",
+  entryClass: "",
+  admissionDate: "",
+
+  gender: "",
+  dateOfBirth: "",
+
+  sportHouse: "",
+
+  bloodGroup: "",
+  genotype: "",
+
+  height: "",
+  weight: "",
+
+  passportPhoto: null,
+  // existingPassportPhoto: "",
+};
 
 export default function Students() {
+  // console.log("API URL:", import.meta.env.VITE_API_URL);
   const navigate = useNavigate();
   const { currentTerm, sessions } = useTerm();
 
@@ -71,17 +99,55 @@ export default function Students() {
     setFormErr("");
     setModal("create");
   };
+
   const openEdit = (e, s) => {
     e.stopPropagation();
+    // console.log("Editing student:", s);
     setForm({
-      name: s.name,
-      parentPhone: s.parentPhone,
-      classId: s.classId,
-      admissionNumber: s.admissionNumber,
+      admissionNumber: s.admissionNumber || "",
+      name: s.name || "",
+
+      parentName: s.parentName || "",
+      parentPhone: s.parentPhone || "",
+      parentEmail: s.parentEmail || "",
+      parentAddress: s.parentAddress || "",
+
+      classId: s.classId || "",
+      entryClass: s.entryClass || "",
+      admissionDate: s.admissionDate ? s.admissionDate.split("T")[0] : "",
+
+      gender: s.gender || "",
+      dateOfBirth: s.dateOfBirth ? s.dateOfBirth.split("T")[0] : "",
+
+      sportHouse: s.sportHouse || "",
+
+      bloodGroup: s.bloodGroup || "",
+      genotype: s.genotype || "",
+
+      height: s.height || "",
+      weight: s.weight || "",
+
+      passportPhoto: null, // File object for new upload,
+      existingPassportPhoto: s.passportPhoto || "",
+      // passportPhoto: s.passportPhoto // Convert URL to File object for preview
+      //   ? fetch(s.passportPhoto)
+      //       .then((res) => res.blob())
+      //       .then(
+      //         (blob) =>
+      //           new File([blob], `passport_${s.id}.jpg`, { type: blob.type }),
+      //       )
+      //   : null,
     });
+
     setFormErr("");
     setModal(s);
   };
+  const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace("/api", "");
+  const photoPreview = form.passportPhoto
+    ? URL.createObjectURL(form.passportPhoto)
+    : form.existingPassportPhoto
+      ? `${API_BASE}${form.existingPassportPhoto}`
+      : null;
 
   const handlePaymentHistory = async (e, s) => {
     e.stopPropagation();
@@ -581,6 +647,14 @@ export default function Students() {
   //   // navigate(`/students/${s.id}/payments`);
   // };
 
+  const payload = new FormData();
+
+  Object.entries(form).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      payload.append(key, value);
+    }
+  });
+
   const save = async () => {
     if (!form.name.trim()) return setFormErr("Name is required");
     if (!form.parentPhone.trim()) return setFormErr("Parent phone is required");
@@ -588,9 +662,13 @@ export default function Students() {
     setSaving(true);
     try {
       if (modal === "create") {
-        await api("/students", { method: "POST", body: form });
+        // await api("/students", { method: "POST", body: form });
+        await api("/students", {
+          method: "POST",
+          body: payload,
+        });
       } else {
-        await api(`/students/${modal.id}`, { method: "PUT", body: form });
+        await api(`/students/${modal.id}`, { method: "PUT", body: payload });
       }
       setModal(null);
       load();
@@ -621,6 +699,12 @@ export default function Students() {
       s.admissionNumber?.toLowerCase().includes(search.toLowerCase()),
   );
 
+  const formGridStyle = {
+    display: "grid",
+    gridTemplateColumns:
+      window.innerWidth < 768 ? "1fr" : "repeat(2, minmax(0, 1fr))",
+    gap: 14,
+  };
   if (loading && !students.length) return <Spinner />;
 
   return (
@@ -842,82 +926,354 @@ export default function Students() {
         <Modal
           title={modal === "create" ? "Add Student" : "Edit Student"}
           onClose={() => setModal(null)}
+          width="900px"
         >
           <ErrorMessage message={formErr} />
 
-          <FormField
-            label="Admission Number"
-            hint="Leave blank to auto-generate (SCH/YEAR/NNNN)"
-          >
-            <input
-              value={form.admissionNumber}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, admissionNumber: e.target.value }))
-              }
-              placeholder="e.g. SCH/2024/0010 (optional)"
-              style={inputStyle}
-            />
-          </FormField>
-
-          <FormField label="Full Name">
-            <input
-              value={form.name}
-              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-              placeholder="e.g. Amaka Obi"
-              style={inputStyle}
-            />
-          </FormField>
-
-          <FormField
-            label="Parent / Guardian Phone"
-            hint="Used for SMS/WhatsApp notifications"
-          >
-            <input
-              type="tel"
-              value={form.parentPhone}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, parentPhone: e.target.value }))
-              }
-              placeholder="+2348012345678"
-              style={inputStyle}
-            />
-          </FormField>
-
-          <FormField label="Class">
-            <select
-              value={form.classId}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, classId: e.target.value }))
-              }
-              style={inputStyle}
-            >
-              <option value="">Select class…</option>
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.className} — ₦{Number(c.feeAmount).toLocaleString()}/term
-                </option>
-              ))}
-            </select>
-          </FormField>
-
           <div
             style={{
-              display: "flex",
-              gap: 10,
-              justifyContent: "flex-end",
-              marginTop: 8,
+              paddingRight: 8,
             }}
           >
-            <ActionButton variant="secondary" onClick={() => setModal(null)}>
-              Cancel
-            </ActionButton>
-            <ActionButton disabled={saving} onClick={save}>
-              {saving
-                ? "Saving…"
-                : modal === "create"
-                  ? "Register Student"
-                  : "Save Changes"}
-            </ActionButton>
+            <h4 style={{ margin: "24px 0 12px" }}>Passport Information</h4>
+
+            <div>
+              {/* <div style={{ gridColumn: "1 / -1" }}> */}
+              {photoPreview && (
+                <img
+                  src={photoPreview}
+                  alt="Preview"
+                  style={{
+                    width: 120,
+                    height: 140,
+                    objectFit: "cover",
+                    borderRadius: 8,
+                    marginTop: 10,
+                    border: "1px solid #e5e7eb",
+                  }}
+                />
+              )}
+              <FormField label="Passport Photo">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      passportPhoto: e.target.files[0],
+                    }))
+                  }
+                  style={inputStyle}
+                />
+              </FormField>
+
+              {/* </div> */}
+            </div>
+            {/* Academic Information */}
+            <h4 style={{ marginBottom: 12 }}>Academic Information</h4>
+
+            <div style={formGridStyle}>
+              <FormField
+                label="Admission Number"
+                hint="Leave blank to auto-generate"
+              >
+                <input
+                  value={form.admissionNumber}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      admissionNumber: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                />
+              </FormField>
+
+              <FormField label="Full Name">
+                <input
+                  value={form.name}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      name: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                />
+              </FormField>
+
+              <FormField label="Class">
+                <select
+                  value={form.classId}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      classId: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                >
+                  <option value="">Select class...</option>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.className}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+
+              <FormField label="Entry Class">
+                <input
+                  value={form.entryClass}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      entryClass: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                />
+              </FormField>
+
+              <FormField label="Admission Date">
+                <input
+                  type="date"
+                  value={form.admissionDate}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      admissionDate: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                />
+              </FormField>
+            </div>
+
+            {/* Student Information */}
+            <h4 style={{ margin: "24px 0 12px" }}>Student Information</h4>
+
+            <div style={formGridStyle}>
+              <FormField label="Gender">
+                <select
+                  value={form.gender}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      gender: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                >
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </FormField>
+
+              <FormField label="Date of Birth">
+                <input
+                  type="date"
+                  value={form.dateOfBirth}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      dateOfBirth: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                />
+              </FormField>
+
+              <FormField label="Sport House">
+                <select
+                  value={form.sportHouse}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      sportHouse: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                >
+                  <option value="">Select Sport House</option>
+                  <option value="Blue">Blue</option>
+                  <option value="Green">Green</option>
+                  <option value="Red">Red</option>
+                  <option value="Yellow">Yellow</option>
+                </select>
+              </FormField>
+            </div>
+
+            {/* Parent Information */}
+            <h4 style={{ margin: "24px 0 12px" }}>
+              Parent / Guardian Information
+            </h4>
+
+            <div style={formGridStyle}>
+              <FormField label="Parent Name">
+                <input
+                  value={form.parentName}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      parentName: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                />
+              </FormField>
+
+              <FormField label="Parent Phone">
+                <input
+                  value={form.parentPhone}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      parentPhone: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                />
+              </FormField>
+
+              <FormField label="Parent Email">
+                <input
+                  type="email"
+                  value={form.parentEmail}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      parentEmail: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                />
+              </FormField>
+
+              <div style={{ gridColumn: "1 / -1" }}>
+                <FormField label="Parent Address">
+                  <textarea
+                    rows={3}
+                    value={form.parentAddress}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        parentAddress: e.target.value,
+                      }))
+                    }
+                    style={{
+                      ...inputStyle,
+                      resize: "vertical",
+                    }}
+                  />
+                </FormField>
+              </div>
+            </div>
+
+            {/* Health Information */}
+            <h4 style={{ margin: "24px 0 12px" }}>Health Information</h4>
+
+            <div style={formGridStyle}>
+              <FormField label="Blood Group">
+                <select
+                  value={form.bloodGroup}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      bloodGroup: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                >
+                  <option value="">Select</option>
+                  <option>A+</option>
+                  <option>A-</option>
+                  <option>B+</option>
+                  <option>B-</option>
+                  <option>AB+</option>
+                  <option>AB-</option>
+                  <option>O+</option>
+                  <option>O-</option>
+                </select>
+              </FormField>
+
+              <FormField label="Genotype">
+                <select
+                  value={form.genotype}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      genotype: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                >
+                  <option value="">Select</option>
+                  <option>AA</option>
+                  <option>AS</option>
+                  <option>SS</option>
+                  <option>AC</option>
+                  <option>SC</option>
+                </select>
+              </FormField>
+            </div>
+
+            {/* Physical Information */}
+            <h4 style={{ margin: "24px 0 12px" }}>Physical Information</h4>
+
+            <div style={formGridStyle}>
+              <FormField label="Height (m)">
+                <input
+                  type="number"
+                  step="0.01"
+                  value={form.height}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      height: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                />
+              </FormField>
+
+              <FormField label="Weight (kg)">
+                <input
+                  type="number"
+                  step="0.1"
+                  value={form.weight}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      weight: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                />
+              </FormField>
+            </div>
+          </div>
+          <div style={{ formGridStyle, marginTop: 20 }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                justifyContent: "flex-end",
+                marginTop: 8,
+              }}
+            >
+              <ActionButton variant="secondary" onClick={() => setModal(null)}>
+                Cancel
+              </ActionButton>
+              <ActionButton disabled={saving} onClick={save}>
+                {saving
+                  ? "Saving…"
+                  : modal === "create"
+                    ? "Register Student"
+                    : "Save Changes"}
+              </ActionButton>
+            </div>
           </div>
         </Modal>
       )}

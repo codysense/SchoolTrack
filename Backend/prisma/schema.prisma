@@ -69,6 +69,7 @@ model Term {
   results             Result[]
 
   @@unique([sessionId, name])
+  assessments Assessment[]
 }
 
 // Teachers 
@@ -101,16 +102,83 @@ model Student {
   id              String   @id @default(cuid())
   admissionNumber String   @unique
   name            String
+
+  // Parent Information
+  parentName      String?
   parentPhone     String
+  parentEmail     String?
+  parentAddress   String?
+
+  // Academic Information
   classId         String
   class           Class    @relation(fields: [classId], references: [id])
+  entryClass      String?
+  admissionDate   DateTime?
+
+  // Student Information
+  gender          String?
+  dateOfBirth     DateTime?
+  sportHouseId    String?
+ 
+
+  // Health Information
+  bloodGroup      String?
+  genotype        String?
+
+  // Physical Information
+  height          Float?
+  weight          Float?
+
+  // Media
+  passportPhoto   String?
+
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
 
+  //sportHouse          SportHouse? @relation(fields: [sportHouseId], references: [id])
+  sportHouse          String?
   payments            Payment[]
   results             Result[]
   optionalFeeAssigns  OptionalFeeAssign[]
   optionalFeePayments OptionalFeePayment[]
+
+  assessments Assessment[]
+}
+
+// model SportHouse {
+//   id       String    @id @default(cuid())
+//   name     String
+//   color    String?
+//   motto    String?
+
+//   students Student[]
+// }
+
+model AssessmentCategory {
+  id          String @id @default(cuid())
+  name        String
+  type        String
+  description String?
+
+  assessments Assessment[]
+}
+
+model Assessment {
+  id          String @id @default(cuid())
+
+  studentId   String
+  termId      String
+
+  categoryId  String
+
+  score       String?
+  remark      String?
+
+  student     Student @relation(fields: [studentId], references: [id])
+  term        Term @relation(fields: [termId], references: [id])
+  category    AssessmentCategory @relation(fields: [categoryId], references: [id])
+
+  @@unique([studentId, termId, categoryId])
 }
 
 // Payments (school fees) 

@@ -2,10 +2,12 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import { authenticate, adminOnly } from "../middleware/auth.js";
+import { uploadSchoolLogo } from "../middleware/uploadSchoolLogo.js";
 
 const router = Router();
 const prisma = new PrismaClient();
 router.use(authenticate, adminOnly);
+router.use(uploadSchoolLogo.single("logo"));
 
 // ── School Info ───────────────────────────────────────────────────────────────
 
@@ -36,6 +38,9 @@ router.put("/school", async (req, res) => {
   } = req.body;
   let school = await prisma.school.findFirst();
   if (school) {
+    const finalLogoUrl = req.file
+      ? `/uploads/school-logos/${req.file.filename}`
+      : logoUrl || school.logoUrl;
     school = await prisma.school.update({
       where: { id: school.id },
       data: {
@@ -44,7 +49,7 @@ router.put("/school", async (req, res) => {
         phone,
         email,
         motto,
-        logoUrl,
+        logoUrl: finalLogoUrl,
         website,
         accountName,
         accountNumber,
@@ -53,6 +58,9 @@ router.put("/school", async (req, res) => {
       },
     });
   } else {
+    const finalLogoUrl = req.file
+      ? `/uploads/school-logos/${req.file.filename}`
+      : logoUrl || null;
     school = await prisma.school.create({
       data: {
         name,
@@ -60,7 +68,7 @@ router.put("/school", async (req, res) => {
         phone,
         email,
         motto,
-        logoUrl,
+        logoUrl: finalLogoUrl,
         website,
         accountName,
         accountNumber,

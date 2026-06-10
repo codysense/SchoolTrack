@@ -1,4 +1,4 @@
-export default function Modal({ title, onClose, children }) {
+export default function Modal({ title, onClose, children, width = "480px" }) {
   return (
     <div
       style={{
@@ -15,8 +15,8 @@ export default function Modal({ title, onClose, children }) {
         style={{
           background: "#fff",
           borderRadius: 12,
-          width: "100%",
-          maxWidth: 480,
+          width: "95vw",
+          maxWidth: width,
           padding: 28,
           maxHeight: "90vh",
           overflowY: "auto",
@@ -30,7 +30,16 @@ export default function Modal({ title, onClose, children }) {
             marginBottom: 20,
           }}
         >
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>{title}</h2>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: 18,
+              fontWeight: 600,
+            }}
+          >
+            {title}
+          </h2>
+
           <button
             onClick={onClose}
             style={{
@@ -44,6 +53,7 @@ export default function Modal({ title, onClose, children }) {
             ×
           </button>
         </div>
+
         {children}
       </div>
     </div>
