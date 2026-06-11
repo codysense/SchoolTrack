@@ -36,10 +36,41 @@ export default function Setup() {
   const [saving, setSaving] = useState(false);
   const [formErr, setFormErr] = useState("");
 
+  const [assessmentCategories, setAssessmentCategories] = useState({});
+  const [assessmentLoading, setAssessmentLoading] = useState(false);
+
+  const [assessmentModal, setAssessmentModal] = useState(null);
+
+  const [assessmentForm, setAssessmentForm] = useState({
+    id: "",
+    name: "",
+    type: "Behaviour",
+    description: "",
+  });
+
+  const loadAssessmentCategories = async () => {
+    try {
+      setAssessmentLoading(true);
+
+      const data = await api("/assessment-categories");
+
+      setAssessmentCategories(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAssessmentLoading(false);
+    }
+  };
+
   const load = () => {
     setLoading(true);
-    Promise.all([api("/setup/school"), api("/setup/users"), api("/classes")])
-      .then(([s, u, c]) => {
+    Promise.all([
+      api("/setup/school"),
+      api("/setup/users"),
+      api("/classes"),
+      api("/assessment-categories"),
+    ])
+      .then(([s, u, c, categories]) => {
         setSchool(s);
         setSchoolForm({
           name: s.name,
@@ -53,6 +84,7 @@ export default function Setup() {
           accountName: s.accountName || "",
           accountNumber: s.accountNumber || "",
         });
+        setAssessmentCategories(categories);
         setUsers(u);
         setClasses(c);
       })
@@ -151,6 +183,52 @@ export default function Setup() {
 
   if (loading) return <Spinner />;
 
+  const saveAssessmentCategory = async () => {
+    try {
+      if (!assessmentForm.name.trim()) {
+        return alert("Category name is required");
+      }
+
+      await api("/assessment-categories", {
+        method: "POST",
+        body: assessmentForm,
+      });
+
+      await loadAssessmentCategories();
+
+      setAssessmentModal(null);
+
+      setAssessmentForm({
+        id: "",
+        name: "",
+        type: "Behaviour",
+        description: "",
+      });
+    } catch (err) {
+      console.error(err);
+
+      alert(err?.message || "Failed to save assessment category");
+    }
+  };
+
+  const deleteAssessmentCategory = async (id) => {
+    const ok = window.confirm("Delete this assessment category?");
+
+    if (!ok) return;
+
+    try {
+      await api(`/assessment-categories/${id}`, {
+        method: "DELETE",
+      });
+
+      await loadAssessmentCategories();
+    } catch (err) {
+      console.error(err);
+
+      alert(err?.message || "Failed to delete category");
+    }
+  };
+
   const schoolField = (label, key, type = "text", placeholder = "") => {
     if (type === "file") {
       return (
@@ -193,7 +271,6 @@ export default function Setup() {
     <div>
       <h2 style={{ marginTop: 0, marginBottom: 20 }}>Setup</h2>
       <ErrorMessage message={error} />
-
       {/* Tabs */}
       <div
         style={{
@@ -209,6 +286,7 @@ export default function Setup() {
         {[
           { key: "school", label: "🏫 School Info" },
           { key: "users", label: "👤 Users & Teachers" },
+          { key: "assessment", label: "📝 Assessment Categories" },
         ].map((t) => (
           <button
             key={t.key}
@@ -229,7 +307,6 @@ export default function Setup() {
           </button>
         ))}
       </div>
-
       {/* ── School Info tab ── */}
       {tab === "school" && (
         <div
@@ -301,7 +378,6 @@ export default function Setup() {
           </ActionButton>
         </div>
       )}
-
       {/* ── Users tab ── */}
       {tab === "users" && (
         <>
@@ -421,7 +497,89 @@ export default function Setup() {
           </div>
         </>
       )}
+      {tab === "assessment" && (
+        <div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: 16,
+            }}
+          >
+            <h3>Assessment Categories</h3>
 
+            <ActionButton
+              onClick={() => {
+                setAssessmentForm({
+                  id: "",
+                  name: "",
+                  type: "Behaviour",
+                  description: "",
+                });
+
+                setAssessmentModal("create");
+              }}
+            >
+              + Add Category
+            </ActionButton>
+          </div>
+
+          {Object.entries(assessmentCategories).map(([type, items]) => (
+            <div
+              key={type}
+              style={{
+                background: "#fff",
+                borderRadius: 10,
+                padding: 20,
+                marginBottom: 20,
+                boxShadow: "0 1px 4px rgba(0,0,0,.06)",
+              }}
+            >
+              <h4>{type}</h4>
+
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                }}
+              >
+                <tbody>
+                  {items.map((item) => (
+                    <tr key={item.id}>
+                      <td style={{ padding: "10px 0" }}>{item.name}</td>
+
+                      <td
+                        style={{
+                          textAlign: "right",
+                        }}
+                      >
+                        <ActionButton
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            setAssessmentForm(item);
+                            setAssessmentModal("edit");
+                          }}
+                        >
+                          Edit
+                        </ActionButton>
+
+                        <ActionButton
+                          size="sm"
+                          variant="danger"
+                          onClick={() => deleteAssessmentCategory(item.id)}
+                        >
+                          Delete
+                        </ActionButton>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      )}
       {/* ── User modal ── */}
       {modal && (
         <Modal
@@ -524,6 +682,49 @@ export default function Setup() {
                   : "Save Changes"}
             </ActionButton>
           </div>
+        </Modal>
+      )}
+
+      {assessmentModal && (
+        <Modal
+          title={
+            assessmentModal === "create" ? "Add Category" : "Edit Category"
+          }
+          onClose={() => setAssessmentModal(null)}
+        >
+          <FormField label="Name">
+            <input
+              value={assessmentForm.name}
+              onChange={(e) =>
+                setAssessmentForm((p) => ({
+                  ...p,
+                  name: e.target.value,
+                }))
+              }
+              style={inputStyle}
+            />
+          </FormField>
+
+          <FormField label="Type">
+            <select
+              value={assessmentForm.type}
+              onChange={(e) =>
+                setAssessmentForm((p) => ({
+                  ...p,
+                  type: e.target.value,
+                }))
+              }
+              style={inputStyle}
+            >
+              <option>Behaviour</option>
+              <option>Psychomotor</option>
+              <option>Sport</option>
+              <option>Club</option>
+              <option>Comments</option>
+            </select>
+          </FormField>
+
+          <ActionButton onClick={saveAssessmentCategory}>Save</ActionButton>
         </Modal>
       )}
     </div>

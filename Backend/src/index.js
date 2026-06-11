@@ -12,6 +12,7 @@ import setupRoutes from "./routes/setup.js";
 import portalRoutes from "./routes/portal.js";
 import sessionRoutes from "./routes/sessions.js";
 import auditRoutes from "./routes/auditLog.js";
+import assessmentCategoryRoutes from "./routes/assessmentCategories.routes.js";
 // import paymentRoutes from "./routes/payment.routes.js";
 
 dotenv.config();
@@ -35,6 +36,7 @@ app.use("/api/setup", setupRoutes);
 app.use("/api/portal", portalRoutes);
 app.use("/api/sessions", sessionRoutes);
 app.use("/api/audit", auditRoutes);
+app.use("/api/assessment-categories", assessmentCategoryRoutes);
 app.use("/uploads", express.static("uploads"));
 
 app.use((req, res) =>

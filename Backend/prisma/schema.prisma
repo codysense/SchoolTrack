@@ -70,6 +70,7 @@ model Term {
 
   @@unique([sessionId, name])
   assessments Assessment[]
+  attendanceSummaries AttendanceSummary[]
 }
 
 // Teachers 
@@ -143,6 +144,8 @@ model Student {
   optionalFeePayments OptionalFeePayment[]
 
   assessments Assessment[]
+
+  attendanceSummaries AttendanceSummary[]
 }
 
 // model SportHouse {
@@ -161,6 +164,7 @@ model AssessmentCategory {
   description String?
 
   assessments Assessment[]
+  @@unique([name, type])
 }
 
 model Assessment {
@@ -249,20 +253,48 @@ model Subject {
   @@unique([name, classId])
 }
 
+model AttendanceSummary {
+  id String @id @default(cuid())
+
+  studentId String
+  termId String
+
+  schoolOpened Int @default(0)
+  present Int @default(0)
+  punctual Int @default(0)
+
+  sportsActivities Int @default(0)
+  otherActivities Int @default(0)
+
+  student Student @relation(fields:[studentId], references:[id])
+  term Term @relation(fields:[termId], references:[id])
+
+  @@unique([studentId, termId])
+}
+
+
+
 model Result {
-  id           String   @id @default(cuid())
+  id           String @id @default(cuid())
+
   studentId    String
-  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   subjectId    String
-  subject      Subject  @relation(fields: [subjectId], references: [id])
   termId       String
-  term         Term     @relation(fields: [termId], references: [id])
-  testScore     Float?
-  examScore     Float?
-  TotalScore    Float?
-  //score         Float
+
+  attendanceScore Float? @default(0)
+  assignmentScore Float? @default(0)
+  ca1Score        Float? @default(0)
+  ca2Score        Float? @default(0)
+  examScore       Float? @default(0)
+
+  TotalScore      Float? @default(0)
+
   recordedById String?
-  createdAt    DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  student Student @relation(fields:[studentId], references:[id])
+  subject Subject @relation(fields:[subjectId], references:[id])
+  term    Term    @relation(fields:[termId], references:[id])
 
   @@unique([studentId, subjectId, termId])
 }

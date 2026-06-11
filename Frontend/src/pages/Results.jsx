@@ -63,6 +63,21 @@ export default function Results() {
   const [search, setSearch] = useState("");
   const [school, setSchool] = useState(null);
   const [focused, setFocused] = useState(null);
+  const [attendance, setAttendance] = useState({
+    schoolOpened: "",
+    present: "",
+    punctual: "",
+  });
+
+  const [behaviour, setBehaviour] = useState([]);
+  const [psychomotor, setPsychomotor] = useState([]);
+  const [sports, setSports] = useState([]);
+  const [clubs, setClubs] = useState([]);
+
+  const [comments, setComments] = useState({
+    teacher: "",
+    principal: "",
+  });
 
   const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace("/api", "");
 
@@ -104,37 +119,85 @@ export default function Results() {
     setLoadingReport(true);
 
     try {
+      // const data = await api(
+      //   `/results/student-result/${studentId}?termId=${termId}&classId=${classId}`,
+      // );
+
       const data = await api(
-        `/results/student-result/${studentId}?termId=${termId}&classId=${classId}`,
+        `/results/report-card/${studentId}?termId=${termId}`,
       );
 
-      // console.log("Report data", data);
+      console.log("Report data", data);
 
       setReport(data);
+
+      setAttendance(
+        data.attendance || {
+          schoolOpened: "",
+          present: "",
+          punctual: "",
+        },
+      );
+
+      setBehaviour(data.behaviour || []);
+      setPsychomotor(data.psychomotor || []);
+      setSports(data.sports || []);
+      setClubs(data.clubs || []);
+
+      setComments(
+        data.comments || {
+          teacher: "",
+          principal: "",
+        },
+      );
 
       //  Build editable sheet
       const subjectMap = {};
 
-      data.subjects.forEach((r) => {
+      data.academics.forEach((r) => {
         subjectMap[r.subject] = r;
       });
 
       const classSubjects = subjects.filter((s) => s.classId === classId);
 
-      const sheetData = classSubjects.map((sub) => {
-        const existing = subjectMap[sub.name];
+      // const sheetData = classSubjects.map((sub) => {
+      //   const existing = subjectMap[sub.name];
 
-        return {
-          subjectId: sub.id,
-          subject: sub.name,
-          testScore: existing?.testScore || "",
-          examScore: existing?.examScore || "",
-          totalScore: existing?.TotalScore || 0,
-          grade: existing?.grade || "",
-          subjectPosition: getOrdinal(existing?.subjectPosition) || "-",
-          remark: existing?.remark || "",
-        };
-      });
+      //   return {
+      //     subjectId: sub.id,
+      //     subject: sub.name,
+      //     testScore: existing?.testScore || "",
+      //     examScore: existing?.examScore || "",
+      //     totalScore: existing?.TotalScore || 0,
+      //     grade: existing?.grade || "",
+      //     subjectPosition: getOrdinal(existing?.subjectPosition) || "-",
+      //     remark: existing?.remark || "",
+      //   };
+      // });
+
+      const sheetData = data.academics.map((s) => ({
+        subjectId: s.subjectId,
+
+        subject: s.subject,
+
+        attendanceScore: s.attendanceScore || 0,
+
+        assignmentScore: s.assignmentScore || 0,
+
+        ca1Score: s.ca1Score || 0,
+
+        ca2Score: s.ca2Score || 0,
+
+        examScore: s.examScore || 0,
+
+        totalScore: s.TotalScore || 0,
+
+        grade: s.grade || "",
+
+        subjectPosition: s.subjectPosition,
+
+        remark: s.remark || "",
+      }));
 
       setSheet(sheetData);
     } catch (e) {
@@ -144,20 +207,50 @@ export default function Results() {
     }
   };
 
+  // const updateSheet = (index, field, value) => {
+  //   setSheet((prev) => {
+  //     const updated = [...prev];
+  //     updated[index][field] = value;
+
+  //     const test = parseFloat(updated[index].testScore) || 0;
+  //     const exam = parseFloat(updated[index].examScore) || 0;
+
+  //     updated[index].totalScore = test + exam;
+
+  //     updated[index].testError = test > 30;
+  //     updated[index].examError = exam > 70;
+
+  //     return updated;
+  //   });
+  // };
+
   const updateSheet = (index, field, value) => {
     setSheet((prev) => {
       const updated = [...prev];
+
       updated[index][field] = value;
 
-      const test = parseFloat(updated[index].testScore) || 0;
-      const exam = parseFloat(updated[index].examScore) || 0;
+      const att = Number(updated[index].attendanceScore) || 0;
 
-      updated[index].totalScore = test + exam;
+      const ass = Number(updated[index].assignmentScore) || 0;
 
-      updated[index].testError = test > 30;
-      updated[index].examError = exam > 70;
+      const ca1 = Number(updated[index].ca1Score) || 0;
+
+      const ca2 = Number(updated[index].ca2Score) || 0;
+
+      const exam = Number(updated[index].examScore) || 0;
+
+      updated[index].totalScore = att + ass + ca1 + ca2 + exam;
 
       return updated;
+    });
+  };
+
+  const updateBehaviour = (index, value) => {
+    setBehaviour((prev) => {
+      const copy = [...prev];
+      copy[index].score = value;
+      return copy;
     });
   };
 
@@ -173,24 +266,53 @@ export default function Results() {
     if (selected) loadReport(s.id, termId, s.classId);
   };
 
-  const saveAllResults = async () => {
+  const saveReportCard = async () => {
     if (!selectedTermId) return setError("Select a term");
 
     setSaving(true);
 
     try {
-      await api("/results", {
+      await api("/results/report-card", {
         method: "POST",
+
         body: {
           studentId: selected.id,
+
           termId: selectedTermId,
+
+          attendance,
+
           results: sheet.map((s) => ({
             subjectId: s.subjectId,
-            testScore: Number(s.testScore) || 0,
+
+            attendanceScore: Number(s.attendanceScore) || 0,
+
+            assignmentScore: Number(s.assignmentScore) || 0,
+
+            ca1Score: Number(s.ca1Score) || 0,
+
+            ca2Score: Number(s.ca2Score) || 0,
+
             examScore: Number(s.examScore) || 0,
           })),
+
+          assessments: [...behaviour, ...psychomotor, ...sports, ...clubs],
+
+          comments,
         },
       });
+      // await api("/results", {
+      //   method: "POST",
+      //   body: {
+      //     studentId: selected.id,
+      //     termId: selectedTermId,
+      //     results: sheet.map((s) => ({
+      //       subjectId: s.subjectId,
+      //       testScore: Number(s.testScore) || 0,
+      //       examScore: Number(s.examScore) || 0,
+      //     })),
+      //   },
+      // });
 
       loadReport(selected.id, selectedTermId);
     } catch (e) {
@@ -200,30 +322,6 @@ export default function Results() {
     }
   };
 
-  // const saveScore = async () => {
-  //   if (!scoreForm.subjectId) return;
-  //   if (!selectedTermId) return setError("Select a term first");
-  //   setSaving(true);
-  //   try {
-  //     await api("/results", {
-  //       method: "POST",
-  //       body: {
-  //         studentId: selected.id,
-  //         subjectId: scoreForm.subjectId,
-  //         termId: selectedTermId,
-  //         score: scoreForm.score,
-  //       },
-  //     });
-  //     setModal(false);
-  //     setScore({ subjectId: "", score: "" });
-  //     loadReport(selected.id, selectedTermId);
-  //   } catch (e) {
-  //     setError(e.message);
-  //   } finally {
-  //     setSaving(false);
-  //   }
-  // };
-
   const deleteScore = async (resultId) => {
     if (!confirm("Delete this score?")) return;
     await api(`/results/${resultId}`, { method: "DELETE" }).catch((e) =>
@@ -231,12 +329,6 @@ export default function Results() {
     );
     loadReport(selected.id, selectedTermId);
   };
-  // const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace("/api", "");
-  // const photoPreview = form.passportPhoto
-  //   ? URL.createObjectURL(form.passportPhoto)
-  //   : form.existingPassportPhoto
-  //     ? `${API_BASE}${form.existingPassportPhoto}`
-  //     : null;
 
   const printReport = () => {
     if (!report || !selected) return;
@@ -528,18 +620,9 @@ export default function Results() {
                 )}
                 {/* {classSubjects.length > 0 && selectedTermId && ( */}
                 {selectedTermId && (
-                  <ActionButton onClick={saveAllResults} disabled={saving}>
-                    {saving ? "Saving..." : "Save All Results"}
+                  <ActionButton onClick={saveReportCard} disabled={saving}>
+                    Save Report Card
                   </ActionButton>
-                  // <ActionButton
-                  //   size="sm"
-                  //   onClick={() => {
-                  //     setScore({ subjectId: "", score: "" });
-                  //     setModal(true);
-                  //   }}
-                  // >
-                  //   + Enter Score
-                  // </ActionButton>
                 )}
               </div>
             </div>
@@ -596,6 +679,96 @@ export default function Results() {
                   )  */}
 
                   <>
+                    {/* Attendance Section */}
+
+                    <div
+                      style={{
+                        background: "#fff",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 12,
+                        padding: 20,
+                        marginBottom: 20,
+                      }}
+                    >
+                      <h3
+                        style={{
+                          marginBottom: 16,
+                          fontSize: 16,
+                          fontWeight: 700,
+                          color: "#111827",
+                        }}
+                      >
+                        Attendance Summary
+                      </h3>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fit,minmax(180px,1fr))",
+                          gap: 16,
+                        }}
+                      >
+                        <FormField label="School Opened">
+                          <input
+                            type="number"
+                            value={attendance.schoolOpened}
+                            onChange={(e) =>
+                              setAttendance({
+                                ...attendance,
+                                schoolOpened: e.target.value,
+                              })
+                            }
+                            style={inputStyle}
+                          />
+                        </FormField>
+
+                        <FormField label="Present">
+                          <input
+                            type="number"
+                            value={attendance.present}
+                            onChange={(e) =>
+                              setAttendance({
+                                ...attendance,
+                                present: e.target.value,
+                              })
+                            }
+                            style={inputStyle}
+                          />
+                        </FormField>
+
+                        <FormField label="Punctual">
+                          <input
+                            type="number"
+                            value={attendance.punctual}
+                            onChange={(e) =>
+                              setAttendance({
+                                ...attendance,
+                                punctual: e.target.value,
+                              })
+                            }
+                            style={inputStyle}
+                          />
+                        </FormField>
+
+                        <div
+                          style={{
+                            background: "#f9fafb",
+                            borderRadius: 8,
+                            padding: 12,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: 700,
+                          }}
+                        >
+                          Absent:
+                          {(attendance.schoolOpened || 0) -
+                            (attendance.present || 0)}
+                        </div>
+                      </div>
+                    </div>
+
                     <table
                       style={{
                         width: "100%",
@@ -608,7 +781,10 @@ export default function Results() {
                         <tr style={{ background: "#f9fafb" }}>
                           {[
                             "Subject",
-                            "Test",
+                            "Att",
+                            "Ass",
+                            "CA1",
+                            "CA2",
                             "Exam",
                             "Total",
                             "Grade",
@@ -636,234 +812,381 @@ export default function Results() {
 
                       <tbody>
                         {sheet.map((row, i) => (
-                          <tr
-                            key={row.subjectId}
-                            style={{
-                              borderBottom: "1px solid #f3f4f6",
-                              transition: "background 0.15s",
-                            }}
-                            onMouseEnter={(e) =>
-                              (e.currentTarget.style.background = "#fafafa")
-                            }
-                            onMouseLeave={(e) =>
-                              (e.currentTarget.style.background = "transparent")
-                            }
-                          >
-                            {/* Subject */}
-                            <td
-                              style={{ padding: "10px 12px", fontWeight: 500 }}
-                            >
-                              {row.subject}
-                            </td>
+                          <tr key={row.subjectId}>
+                            <td>{row.subject}</td>
 
-                            {/* Test */}
-                            <td style={{ padding: "8px 12px" }}>
+                            <td>
                               <input
                                 type="number"
-                                value={row.testScore}
+                                value={row.attendanceScore}
                                 onChange={(e) =>
-                                  updateSheet(i, "testScore", e.target.value)
+                                  updateSheet(
+                                    i,
+                                    "attendanceScore",
+                                    e.target.value,
+                                  )
                                 }
-                                onFocus={() => setFocused(`test-${i}`)}
-                                onBlur={() => setFocused(null)}
-                                style={{
-                                  ...cellInput,
-                                  borderColor:
-                                    focused === `test-${i}`
-                                      ? "#3b82f6"
-                                      : "#e5e7eb",
-                                  boxShadow:
-                                    focused === `test-${i}`
-                                      ? "0 0 0 2px rgba(59,130,246,0.15)"
-                                      : "none",
-
-                                  borderColor: row.testError
-                                    ? "#ef4444"
-                                    : "#e5e7eb",
-                                  background: row.testError
-                                    ? "#fef2f2"
-                                    : "#fff",
-                                }}
+                                style={cellInput}
                               />
                             </td>
 
-                            {/* Exam */}
-                            <td style={{ padding: "8px 12px" }}>
+                            <td>
+                              <input
+                                type="number"
+                                value={row.assignmentScore}
+                                onChange={(e) =>
+                                  updateSheet(
+                                    i,
+                                    "assignmentScore",
+                                    e.target.value,
+                                  )
+                                }
+                                style={cellInput}
+                              />
+                            </td>
+
+                            <td>
+                              <input
+                                type="number"
+                                value={row.ca1Score}
+                                onChange={(e) =>
+                                  updateSheet(i, "ca1Score", e.target.value)
+                                }
+                                style={cellInput}
+                              />
+                            </td>
+
+                            <td>
+                              <input
+                                type="number"
+                                value={row.ca2Score}
+                                onChange={(e) =>
+                                  updateSheet(i, "ca2Score", e.target.value)
+                                }
+                                style={cellInput}
+                              />
+                            </td>
+
+                            <td>
                               <input
                                 type="number"
                                 value={row.examScore}
                                 onChange={(e) =>
                                   updateSheet(i, "examScore", e.target.value)
                                 }
-                                onFocus={() => setFocused(`exam-${i}`)}
-                                onBlur={() => setFocused(null)}
-                                style={{
-                                  ...cellInput,
-                                  borderColor:
-                                    focused === `exam-${i}`
-                                      ? "#3b82f6"
-                                      : "#e5e7eb",
-                                  boxShadow:
-                                    focused === `exam-${i}`
-                                      ? "0 0 0 2px rgba(59,130,246,0.15)"
-                                      : "none",
-                                  borderColor: row.examError
-                                    ? "#ef4444"
-                                    : "#e5e7eb",
-                                  background: row.examError
-                                    ? "#fef2f2"
-                                    : "#fff",
-                                }}
+                                style={cellInput}
                               />
                             </td>
 
-                            {/* Total */}
-                            <td
-                              style={{
-                                padding: "8px 12px",
-                                fontWeight: 600,
-                                color: "#111827",
-                              }}
-                            >
-                              {row.totalScore}
+                            <td>
+                              <strong>{row.totalScore}</strong>
                             </td>
 
-                            {/* Grade */}
-                            <td style={{ padding: "8px 12px" }}>
+                            <td>
                               <Badge
                                 label={row.grade}
                                 color={gradeColor(row.grade)}
                               />
                             </td>
 
-                            {/* Position */}
-                            <td
-                              style={{
-                                padding: "8px 12px",
-                                fontWeight: 500,
-                                color: "#374151",
-                              }}
-                            >
-                              {row.subjectPosition || "-"}
-                            </td>
+                            <td>{row.subjectPosition}</td>
 
-                            {/* Remark */}
-                            <td
-                              style={{
-                                padding: "8px 12px",
-                                fontSize: 12,
-                                color: "#6b7280",
-                              }}
-                            >
-                              {row.remark}
-                            </td>
+                            <td>{row.remark}</td>
                           </tr>
+                          // <tr
+                          //   key={row.subjectId}
+                          //   style={{
+                          //     borderBottom: "1px solid #f3f4f6",
+                          //     transition: "background 0.15s",
+                          //   }}
+                          //   onMouseEnter={(e) =>
+                          //     (e.currentTarget.style.background = "#fafafa")
+                          //   }
+                          //   onMouseLeave={(e) =>
+                          //     (e.currentTarget.style.background = "transparent")
+                          //   }
+                          // >
+                          //   {/* Subject */}
+                          //   <td
+                          //     style={{ padding: "10px 12px", fontWeight: 500 }}
+                          //   >
+                          //     {row.subject}
+                          //   </td>
+
+                          //   {/* Test */}
+                          //   <td style={{ padding: "8px 12px" }}>
+                          //     <input
+                          //       type="number"
+                          //       value={row.testScore}
+                          //       onChange={(e) =>
+                          //         updateSheet(i, "testScore", e.target.value)
+                          //       }
+                          //       onFocus={() => setFocused(`test-${i}`)}
+                          //       onBlur={() => setFocused(null)}
+                          //       style={{
+                          //         ...cellInput,
+                          //         borderColor:
+                          //           focused === `test-${i}`
+                          //             ? "#3b82f6"
+                          //             : "#e5e7eb",
+                          //         boxShadow:
+                          //           focused === `test-${i}`
+                          //             ? "0 0 0 2px rgba(59,130,246,0.15)"
+                          //             : "none",
+
+                          //         borderColor: row.testError
+                          //           ? "#ef4444"
+                          //           : "#e5e7eb",
+                          //         background: row.testError
+                          //           ? "#fef2f2"
+                          //           : "#fff",
+                          //       }}
+                          //     />
+                          //   </td>
+
+                          //   {/* Exam */}
+                          //   <td style={{ padding: "8px 12px" }}>
+                          //     <input
+                          //       type="number"
+                          //       value={row.examScore}
+                          //       onChange={(e) =>
+                          //         updateSheet(i, "examScore", e.target.value)
+                          //       }
+                          //       onFocus={() => setFocused(`exam-${i}`)}
+                          //       onBlur={() => setFocused(null)}
+                          //       style={{
+                          //         ...cellInput,
+                          //         borderColor:
+                          //           focused === `exam-${i}`
+                          //             ? "#3b82f6"
+                          //             : "#e5e7eb",
+                          //         boxShadow:
+                          //           focused === `exam-${i}`
+                          //             ? "0 0 0 2px rgba(59,130,246,0.15)"
+                          //             : "none",
+                          //         borderColor: row.examError
+                          //           ? "#ef4444"
+                          //           : "#e5e7eb",
+                          //         background: row.examError
+                          //           ? "#fef2f2"
+                          //           : "#fff",
+                          //       }}
+                          //     />
+                          //   </td>
+
+                          //   {/* Total */}
+                          //   <td
+                          //     style={{
+                          //       padding: "8px 12px",
+                          //       fontWeight: 600,
+                          //       color: "#111827",
+                          //     }}
+                          //   >
+                          //     {row.totalScore}
+                          //   </td>
+
+                          //   {/* Grade */}
+                          //   <td style={{ padding: "8px 12px" }}>
+                          //     <Badge
+                          //       label={row.grade}
+                          //       color={gradeColor(row.grade)}
+                          //     />
+                          //   </td>
+
+                          //   {/* Position */}
+                          //   <td
+                          //     style={{
+                          //       padding: "8px 12px",
+                          //       fontWeight: 500,
+                          //       color: "#374151",
+                          //     }}
+                          //   >
+                          //     {row.subjectPosition || "-"}
+                          //   </td>
+
+                          //   {/* Remark */}
+                          //   <td
+                          //     style={{
+                          //       padding: "8px 12px",
+                          //       fontSize: 12,
+                          //       color: "#6b7280",
+                          //     }}
+                          //   >
+                          //     {row.remark}
+                          //   </td>
+                          // </tr>
                         ))}
                       </tbody>
                     </table>
-                    {/* <table
+
+                    <div
+                      style={{
+                        background: "#fff",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 12,
+                        padding: 20,
+                        marginTop: 20,
+                      }}
+                    >
+                      <h3>Behaviour Assessment</h3>
+
+                      <div
                         style={{
-                          width: "100%",
-                          borderCollapse: "collapse",
-                          fontSize: 14,
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fit,minmax(250px,1fr))",
+                          gap: 16,
                         }}
                       >
-                        <thead>
-                          <tr style={{ background: "#f9fafb" }}>
-                            {["Subject", "Score / 100", "Grade", ""].map(
-                              (h) => (
-                                <th
-                                  key={h}
-                                  style={{
-                                    padding: "9px 14px",
-                                    textAlign: "left",
-                                    fontSize: 13,
-                                    fontWeight: 600,
-                                    color: "#374151",
-                                  }}
-                                >
-                                  {h}
-                                </th>
-                              ),
-                            )}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {report.results.map((r) => (
-                            <tr
-                              key={r.id}
-                              style={{ borderTop: "1px solid #f3f4f6" }}
+                        {behaviour.map((item, index) => (
+                          <FormField key={item.categoryId} label={item.name}>
+                            <select
+                              value={item.score || ""}
+                              onChange={(e) =>
+                                updateBehaviour(index, e.target.value)
+                              }
+                              style={inputStyle}
                             >
-                              <td style={{ padding: "9px 14px" }}>
-                                {r.subject.name}
-                              </td>
-                              <td style={{ padding: "9px 14px" }}>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 10,
-                                  }}
-                                >
-                                  <span
-                                    style={{ fontWeight: 600, minWidth: 30 }}
-                                  >
-                                    {r.score}
-                                  </span>
-                                  <div
-                                    style={{
-                                      flex: 1,
-                                      background: "#f3f4f6",
-                                      borderRadius: 4,
-                                      height: 6,
-                                      maxWidth: 80,
-                                    }}
-                                  >
-                                    <div
-                                      style={{
-                                        width: `${r.score}%`,
-                                        height: "100%",
-                                        borderRadius: 4,
-                                        background:
-                                          r.score >= 70
-                                            ? "#10b981"
-                                            : r.score >= 50
-                                              ? "#4f8ef7"
-                                              : "#f59e0b",
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                              </td>
-                              <td style={{ padding: "9px 14px" }}>
-                                <Badge
-                                  label={r.grade}
-                                  color={gradeColor(r.grade)}
-                                />
-                              </td>
-                              <td style={{ padding: "9px 14px" }}>
-                                <button
-                                  onClick={() => deleteScore(r.id)}
-                                  style={{
-                                    background: "none",
-                                    border: "none",
-                                    color: "#dc2626",
-                                    cursor: "pointer",
-                                    fontSize: 12,
-                                    padding: "2px 6px",
-                                  }}
-                                  title="Delete this score"
-                                >
-                                  ×
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table> */}
+                              <option value="">Select</option>
+                              <option>A</option>
+                              <option>B</option>
+                              <option>C</option>
+                              <option>D</option>
+                              <option>E</option>
+                            </select>
+                          </FormField>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(auto-fit,minmax(350px,1fr))",
+                        gap: 20,
+                        marginTop: 20,
+                      }}
+                    > */}
+                    <h3>PSychomotor Assessment</h3>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(auto-fit,minmax(250px,1fr))",
+                        gap: 16,
+                      }}
+                    >
+                      {psychomotor.map((item, index) => (
+                        <FormField key={item.categoryId} label={item.name}>
+                          <select
+                            value={item.score || ""}
+                            onChange={(e) =>
+                              updatePsychomotor(index, e.target.value)
+                            }
+                            style={inputStyle}
+                          >
+                            <option value="">Select</option>
+                            <option>A</option>
+                            <option>B</option>
+                            <option>C</option>
+                            <option>D</option>
+                            <option>E</option>
+                          </select>
+                        </FormField>
+                      ))}
+                    </div>
+
+                    <h3>Sports Assessment</h3>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(auto-fit,minmax(250px,1fr))",
+                        gap: 16,
+                      }}
+                    >
+                      {sports.map((item, index) => (
+                        <FormField key={item.categoryId} label={item.name}>
+                          <select
+                            value={item.score || ""}
+                            onChange={(e) => updateSport(index, e.target.value)}
+                            style={inputStyle}
+                          >
+                            <option value="">Select</option>
+                            <option>A</option>
+                            <option>B</option>
+                            <option>C</option>
+                            <option>D</option>
+                            <option>E</option>
+                          </select>
+                        </FormField>
+                      ))}
+                    </div>
+
+                    <div
+                      style={{
+                        background: "#fff",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 12,
+                        padding: 20,
+                        marginTop: 20,
+                      }}
+                    >
+                      <h3>Comments</h3>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gap: 20,
+                        }}
+                      >
+                        <FormField label="Teacher Comment">
+                          <textarea
+                            rows={4}
+                            value={comments.teacher}
+                            onChange={(e) =>
+                              setComments({
+                                ...comments,
+                                teacher: e.target.value,
+                              })
+                            }
+                            style={inputStyle}
+                          />
+                        </FormField>
+
+                        <FormField label="Principal Comment">
+                          <textarea
+                            rows={4}
+                            value={comments.principal}
+                            onChange={(e) =>
+                              setComments({
+                                ...comments,
+                                principal: e.target.value,
+                              })
+                            }
+                            style={inputStyle}
+                          />
+                        </FormField>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        marginTop: 24,
+                      }}
+                    >
+                      <ActionButton onClick={saveReportCard} disabled={saving}>
+                        Save Report Card
+                      </ActionButton>
+                    </div>
 
                     {/* Summary */}
-                    <div
+                    {/* <div
                       style={{
                         marginTop: 16,
                         padding: "12px 14px",
@@ -893,12 +1216,12 @@ export default function Results() {
                         >
                           {report.summary?.finalGrade}
                         </strong>
-                      </span>
-                      <span>
+                      </span> */}
+                    {/* <span>
                         Class Position:{" "}
                         <strong>{getOrdinal(report.summary.position)}</strong>
-                      </span>
-                    </div>
+                      </span> */}
+                    {/* </div> */}
                   </>
                 </>
               )

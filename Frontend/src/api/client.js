@@ -5,6 +5,8 @@ console.log("API Base URL:", BASE);
 export async function api(path, options = {}) {
   const token = localStorage.getItem("token");
 
+  // console.log("Token:", token);
+
   const isFormData = options.body instanceof FormData;
 
   const res = await fetch(`${BASE}${path}`, {
