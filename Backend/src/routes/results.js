@@ -8,12 +8,19 @@ const prisma = new PrismaClient();
 router.use(authenticate);
 
 function getGrade(score) {
-  if (score >= 70) return "A";
+  if (score >= 80) return "A";
   if (score >= 60) return "B";
-  if (score >= 50) return "C";
-  if (score >= 40) return "D";
-  return "F";
+  if (score >= 40) return "C";
+  if (score >= 0) return "P";
 }
+
+const commentCategories = await prisma.assessmentCategory.findMany({
+  where: {
+    name: {
+      in: ["Teacher Comment", "Principal Comment"],
+    },
+  },
+});
 
 async function computeStudentPosition({ classId, termId }) {
   // 1. Fetch all results for the class in a term
@@ -74,11 +81,10 @@ async function computeStudentPosition({ classId, termId }) {
 }
 
 function getRemark(score) {
-  if (score >= 75) return "Excellent";
+  if (score >= 80) return "Excellent";
   if (score >= 60) return "Very Good";
-  if (score >= 50) return "Good";
-  if (score >= 40) return "Fair";
-  return "Needs Improvement";
+  if (score >= 40) return "Good";
+  if (score >= 0) return "Poor";
 }
 
 // async function computeSubjectPositions({ classId, termId }) {
@@ -331,11 +337,11 @@ router.get("/student-result/:studentId", async (req, res) => {
       },
     });
 
-    if (!results.length) {
-      return res.status(404).json({
-        error: "No results found for this student",
-      });
-    }
+    // if (!results.length) {
+    //   return res.status(404).json({
+    //     error: "No results found for this student",
+    //   });
+    // }
 
     // if (!results.length) {
     //   const results = await prisma.subject.findMany({
@@ -400,7 +406,7 @@ router.get("/student-result/:studentId", async (req, res) => {
       }));
 
     const sports = assessments
-      .filter((a) => a.category.type === "Sports")
+      .filter((a) => a.category.type === "Sport")
       .map((a) => ({
         name: a.category.name,
         score: a.score,
@@ -408,7 +414,7 @@ router.get("/student-result/:studentId", async (req, res) => {
       }));
 
     const clubs = assessments
-      .filter((a) => a.category.type === "Clubs")
+      .filter((a) => a.category.type === "Club")
       .map((a) => ({
         name: a.category.name,
         score: a.score,
@@ -504,7 +510,26 @@ router.get("/student-result/:studentId", async (req, res) => {
           (x) => x.term.name === "Second Term",
         );
 
+        const student = await prisma.student.findUnique({
+          where: { id: studentId },
+        });
+
         return {
+          student: {
+            name: student.name,
+            admissionNumber: student.admissionNumber,
+            gender: student.gender,
+            sportHouse: student.sportHouse,
+            passportPhoto: student.passportPhoto,
+            dateOfBirth: student.dateOfBirth,
+          },
+
+          attendance: {
+            schoolOpened: attendanceData?.schoolOpened ?? 0,
+            present: attendanceData?.present ?? 0,
+            punctual: attendanceData?.punctual ?? 0,
+            absent: attendanceData?.absent ?? 0,
+          },
           subject: r.subject.name,
 
           attendanceScore: r.attendanceScore ?? 0,
@@ -554,6 +579,7 @@ router.get("/student-result/:studentId", async (req, res) => {
         sportHouse: student.sportHouse,
         passportPhoto: student.passportPhoto,
         class: student.class,
+        dateOfBirth: student.dateOfBirth,
       },
 
       school,
@@ -631,7 +657,10 @@ router.post("/report-card", staffOnly, async (req, res) => {
     attendance,
     results = [],
     assessments = [],
+    comments = {},
   } = req.body;
+
+  // console.log("Received report card data:", req.body);
 
   if (!studentId || !termId) {
     return res.status(400).json({
@@ -787,10 +816,54 @@ router.post("/report-card", staffOnly, async (req, res) => {
     }
 
     // ==========================
+    // Merge Comments Into Assessments
+    // ==========================
+
+    const allAssessments = [...assessments];
+
+    // const commentCategories = await prisma.assessmentCategory.findMany({
+    //   where: {
+    //     type: "Comments",
+    //   },
+    // });
+
+    // const commentCategories = await prisma.assessmentCategory.findMany({
+    //   where: {
+    //     name: {
+    //       in: ["Teacher Comment", "Principal Comment"],
+    //     },
+    //   },
+    // });
+
+    const teacherCategory = commentCategories.find(
+      (c) => c.name === "Teacher Comment",
+    );
+
+    const principalCategory = commentCategories.find(
+      (c) => c.name === "Principal Comment",
+    );
+
+    if (teacherCategory) {
+      allAssessments.push({
+        categoryId: teacherCategory.id,
+        score: comments.teacher ?? "",
+        remark: "",
+      });
+    }
+
+    if (principalCategory) {
+      allAssessments.push({
+        categoryId: principalCategory.id,
+        score: comments.principal ?? "",
+        remark: "",
+      });
+    }
+
+    // ==========================
     // Behaviour / Psychomotor /
     // Sports / Clubs / Comments
     // ==========================
-    for (const item of assessments) {
+    for (const item of allAssessments) {
       transactionQueries.push(
         prisma.assessment.upsert({
           where: {
@@ -947,7 +1020,7 @@ router.get("/report-card/:studentId", async (req, res) => {
       Behaviour: [],
       Psychomotor: [],
       Sport: [],
-      Clubs: [],
+      Club: [],
       Comments: [],
     };
 
@@ -994,7 +1067,7 @@ router.get("/report-card/:studentId", async (req, res) => {
       Behaviour: [],
       Psychomotor: [],
       Sport: [],
-      Clubs: [],
+      Club: [],
       Comments: [],
     };
 
@@ -1022,6 +1095,11 @@ router.get("/report-card/:studentId", async (req, res) => {
       mergedTemplate.Comments?.find((x) => x.name === "Principal Comment")
         ?.score || "";
 
+    //Get current term details
+    const currentTerm = await prisma.term.findUnique({
+      where: { id: termId },
+    });
+
     res.json({
       student,
 
@@ -1039,17 +1117,11 @@ router.get("/report-card/:studentId", async (req, res) => {
         TotalScore: r.TotalScore ?? 0,
       })),
 
-      attendance: attendance
-        ? {
-            schoolOpened: attendance.schoolOpened,
-            present: attendance.present,
-            punctual: attendance.punctual,
-          }
-        : {
-            schoolOpened: "",
-            present: "",
-            punctual: "",
-          },
+      attendance: {
+        schoolOpened: currentTerm.schoolOpened || 0,
+        present: currentTerm.schoolOpened || 0,
+        punctual: attendance?.punctual || 0,
+      },
 
       template: mergedTemplate,
 
@@ -1059,7 +1131,7 @@ router.get("/report-card/:studentId", async (req, res) => {
 
       sports: mergedTemplate.Sport,
 
-      clubs: mergedTemplate.Clubs,
+      clubs: mergedTemplate.Club,
 
       comments: {
         teacher: teacherComment,
@@ -1086,7 +1158,7 @@ router.get("/report-card-template", async (req, res) => {
       Behaviour: [],
       Psychomotor: [],
       Sport: [],
-      Clubs: [],
+      Club: [],
       Comments: [],
     };
 
@@ -1169,7 +1241,7 @@ router.post("/", staffOnly, async (req, res) => {
         update: {
           schoolOpened,
           present,
-          punctual,
+          //punctual,
         },
 
         create: {

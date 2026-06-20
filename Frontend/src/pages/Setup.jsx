@@ -79,6 +79,7 @@ export default function Setup() {
           email: s.email || "",
           motto: s.motto || "",
           logoUrl: s.logoUrl || "",
+          principalSignatureUrl: s.principalSignatureUrl || "",
           website: s.website || "",
           bankName: s.bankName || "",
           accountName: s.accountName || "",
@@ -217,7 +218,7 @@ export default function Setup() {
     if (!ok) return;
 
     try {
-      await api(`/assessment-categories/${id}`, {
+      await api(`/setup/assessment-category/${id}`, {
         method: "DELETE",
       });
 
@@ -230,7 +231,7 @@ export default function Setup() {
   };
 
   const schoolField = (label, key, type = "text", placeholder = "") => {
-    if (type === "file") {
+    if (type === "file" && key === "logoUrl") {
       return (
         <FormField key={key} label={label}>
           <input
@@ -244,6 +245,28 @@ export default function Setup() {
                 logo: file,
                 // update preview/url field if needed
                 logoUrl: file ? URL.createObjectURL(file) : p.logoUrl,
+              }));
+            }}
+            style={inputStyle}
+          />
+        </FormField>
+      );
+    } else if (type === "file" && key === "principalSignatureUrl") {
+      return (
+        <FormField key={key} label={label}>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files[0];
+              setSchoolForm((p) => ({
+                ...p,
+                // store selected File under `principalSignature` so we can append as 'principalSignature'
+                principalSignature: file,
+                // update preview/url field if needed
+                principalSignatureUrl: file
+                  ? URL.createObjectURL(file)
+                  : p.principalSignatureUrl,
               }));
             }}
             style={inputStyle}
@@ -339,6 +362,12 @@ export default function Setup() {
           {schoolField(
             "Logo URL",
             "logoUrl",
+            "file",
+            "https://... (image link)",
+          )}
+          {schoolField(
+            "Principal Signature URL",
+            "principalSignatureUrl",
             "file",
             "https://... (image link)",
           )}

@@ -3,11 +3,11 @@ import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import { authenticate, adminOnly } from "../middleware/auth.js";
 import { uploadSchoolLogo } from "../middleware/uploadSchoolLogo.js";
+import { uploadPrincipalSignature } from "../middleware/uploadSignature.js";
 
 const router = Router();
 const prisma = new PrismaClient();
 router.use(authenticate, adminOnly);
-router.use(uploadSchoolLogo.single("logo"));
 
 // ── School Info ───────────────────────────────────────────────────────────────
 
@@ -23,62 +23,85 @@ router.get("/school", async (_, res) => {
 });
 
 // PUT update school info (upsert by first record)
-router.put("/school", async (req, res) => {
-  const {
-    name,
-    address,
-    phone,
-    email,
-    motto,
-    logoUrl,
-    website,
-    accountName,
-    accountNumber,
-    bankName,
-  } = req.body;
-  let school = await prisma.school.findFirst();
-  if (school) {
-    const finalLogoUrl = req.file
-      ? `/uploads/school-logos/${req.file.filename}`
-      : logoUrl || school.logoUrl;
-    school = await prisma.school.update({
-      where: { id: school.id },
-      data: {
-        name,
-        address,
-        phone,
-        email,
-        motto,
-        logoUrl: finalLogoUrl,
-        website,
-        accountName,
-        accountNumber,
-        bankName,
-        updatedAt: new Date(),
-      },
-    });
-  } else {
-    const finalLogoUrl = req.file
-      ? `/uploads/school-logos/${req.file.filename}`
-      : logoUrl || null;
-    school = await prisma.school.create({
-      data: {
-        name,
-        address,
-        phone,
-        email,
-        motto,
-        logoUrl: finalLogoUrl,
-        website,
-        accountName,
-        accountNumber,
-        bankName,
-        createdAt: new Date(),
-      },
-    });
-  }
-  res.json(school);
-});
+router.put(
+  "/school",
+  uploadSchoolLogo.fields([
+    { name: "logo", maxCount: 1 },
+    { name: "principalSignature", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    const {
+      name,
+      address,
+      phone,
+      email,
+      motto,
+      logoUrl,
+      principalSignatureUrl,
+      website,
+      accountName,
+      accountNumber,
+      bankName,
+    } = req.body;
+
+    const logoFile = req.files?.["logo"]?.[0];
+    const sigFile = req.files?.["principalSignature"]?.[0];
+
+    let school = await prisma.school.findFirst();
+    if (school) {
+      const finalLogoUrl = logoFile
+        ? `/uploads/school-logos/${logoFile.filename}`
+        : logoUrl || school.logoUrl;
+
+      const finalPrincipalSignatureUrl = sigFile
+        ? `/uploads/principal-signatures/${sigFile.filename}`
+        : principalSignatureUrl || school.principalSignatureUrl;
+      school = await prisma.school.update({
+        where: { id: school.id },
+        data: {
+          name,
+          address,
+          phone,
+          email,
+          motto,
+          logoUrl: finalLogoUrl,
+          principalSignatureUrl: finalPrincipalSignatureUrl,
+          website,
+          accountName,
+          accountNumber,
+          bankName,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      const finalLogoUrl = logoFile
+        ? `/uploads/school-logos/${logoFile.filename}`
+        : logoUrl || null;
+
+      const finalPrincipalSignatureUrl = sigFile
+        ? `/uploads/principal-signatures/${sigFile.filename}`
+        : principalSignatureUrl || null;
+
+      school = await prisma.school.create({
+        data: {
+          name,
+          address,
+          phone,
+          email,
+          motto,
+          logoUrl: finalLogoUrl,
+          principalSignatureUrl: finalPrincipalSignatureUrl,
+          website,
+          accountName,
+          accountNumber,
+          bankName,
+          createdAt: new Date(),
+        },
+      });
+    }
+    res.json(school);
+  },
+);
 
 // ── Users (Admin + Teachers) ──────────────────────────────────────────────────
 
@@ -177,6 +200,27 @@ router.delete("/users/:id", async (req, res) => {
   }
   await prisma.user.delete({ where: { id: req.params.id } });
   res.json({ success: true });
+});
+
+//Delete Assessment-category
+router.delete("/:id", adminOnly, async (req, res) => {
+  try {
+    await prisma.assessmentCategory.delete({
+      where: {
+        id: req.params.id,
+      },
+    });
+
+    res.json({
+      success: true,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error: "Failed to delete assessment category",
+    });
+  }
 });
 
 export default router;

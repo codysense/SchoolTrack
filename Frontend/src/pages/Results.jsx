@@ -55,6 +55,7 @@ export default function Results() {
   const [selected, setSelected] = useState(null);
   const [selectedTermId, setSelectedTermId] = useState("");
   const [report, setReport] = useState(null);
+  const [printerReport, setPrinterReport] = useState(null);
   const [loadingReport, setLoadingReport] = useState(false);
   const [modal, setModal] = useState(false);
   const [scoreForm, setScore] = useState({ subjectId: "", score: "" });
@@ -65,8 +66,6 @@ export default function Results() {
   const [focused, setFocused] = useState(null);
   const [attendance, setAttendance] = useState({
     schoolOpened: "",
-    present: "",
-    punctual: "",
   });
 
   const [behaviour, setBehaviour] = useState([]);
@@ -112,20 +111,23 @@ export default function Results() {
       .catch((e) => setError(e.message));
   }, []);
 
-  // console.log("Selected", selected);
+  // console.log("Subjects for class", selected?.classId, subjects);
 
   const loadReport = async (studentId, termId, classId) => {
     if (!termId) return;
     setLoadingReport(true);
 
     try {
-      // const data = await api(
-      //   `/results/student-result/${studentId}?termId=${termId}&classId=${classId}`,
-      // );
+      const printReportData = await api(
+        `/results/student-result/${studentId}?termId=${termId}&classId=${classId}`,
+      );
 
       const data = await api(
         `/results/report-card/${studentId}?termId=${termId}`,
       );
+
+      setPrinterReport(printReportData);
+      console.log("Print report data", printReportData);
 
       console.log("Report data", data);
 
@@ -135,14 +137,42 @@ export default function Results() {
         data.attendance || {
           schoolOpened: "",
           present: "",
-          punctual: "",
         },
       );
 
-      setBehaviour(data.behaviour || []);
-      setPsychomotor(data.psychomotor || []);
-      setSports(data.sports || []);
-      setClubs(data.clubs || []);
+      // setBehaviour(data.behaviour || []);
+      // setPsychomotor(data.psychomotor || []);
+      // setSports(data.sports || []);
+
+      setBehaviour(
+        data.behaviour.map((item) => ({
+          ...item,
+          score: item.score || "A",
+        })),
+      );
+
+      setPsychomotor(
+        data.psychomotor.map((item) => ({
+          ...item,
+          score: item.score || "A",
+        })),
+      );
+
+      setSports(
+        data.sports.map((item) => ({
+          ...item,
+          score: item.score || "A",
+        })),
+      );
+      // setClubs(data.clubs || []);
+
+      setClubs(
+        data.clubs.map((item) => ({
+          ...item,
+          score: item.score || "A",
+        })),
+      );
+      // setClubs(data.clubs || []);
 
       setComments(
         data.comments || {
@@ -153,12 +183,17 @@ export default function Results() {
 
       //  Build editable sheet
       const subjectMap = {};
-
-      data.academics.forEach((r) => {
+      const filteredSubjects = subjects.filter(
+        (s) => s.classId === selected?.classId,
+      );
+      filteredSubjects.forEach((r) => {
         subjectMap[r.subject] = r;
       });
 
-      const classSubjects = subjects.filter((s) => s.classId === classId);
+      // const classSubjects = subjects.filter(
+      //   (s) => s.classId === selected?.classId,
+      // );
+      // console.log("Class subjects", classSubjects);
 
       // const sheetData = classSubjects.map((sub) => {
       //   const existing = subjectMap[sub.name];
@@ -175,29 +210,60 @@ export default function Results() {
       //   };
       // });
 
-      const sheetData = data.academics.map((s) => ({
-        subjectId: s.subjectId,
+      // const sheetData = data.academics.map((s) => ({
+      //   subjectId: s.subjectId,
 
-        subject: s.subject,
+      //   subject: s.subject || "",
 
-        attendanceScore: s.attendanceScore || 0,
+      //   attendanceScore: s.attendanceScore || 0,
 
-        assignmentScore: s.assignmentScore || 0,
+      //   assignmentScore: s.assignmentScore || 0,
 
-        ca1Score: s.ca1Score || 0,
+      //   ca1Score: s.ca1Score || 0,
 
-        ca2Score: s.ca2Score || 0,
+      //   ca2Score: s.ca2Score || 0,
 
-        examScore: s.examScore || 0,
+      //   examScore: s.examScore || 0,
 
-        totalScore: s.TotalScore || 0,
+      //   totalScore: s.TotalScore || 0,
 
-        grade: s.grade || "",
+      //   grade: s.grade || "",
 
-        subjectPosition: s.subjectPosition,
+      //   subjectPosition: s.subjectPosition,
 
-        remark: s.remark || "",
-      }));
+      //   remark: s.remark || "",
+      // }));
+
+      const classSubjects = subjects.filter((s) => s.classId === classId);
+
+      const academicMap = {};
+
+      data.academics.forEach((a) => {
+        academicMap[a.subjectId] = a;
+      });
+
+      const sheetData = classSubjects.map((sub) => {
+        const existing = academicMap[sub.id];
+
+        return {
+          subjectId: sub.id,
+          subject: sub.name,
+
+          attendanceScore: existing?.attendanceScore ?? 0,
+          assignmentScore: existing?.assignmentScore ?? 0,
+          ca1Score: existing?.ca1Score ?? 0,
+          ca2Score: existing?.ca2Score ?? 0,
+          examScore: existing?.examScore ?? 0,
+
+          totalScore: existing?.TotalScore ?? 0,
+
+          grade: existing?.grade ?? "",
+          subjectPosition: existing?.subjectPosition ?? null,
+          remark: existing?.remark ?? "",
+        };
+      });
+
+      // setSheet(sheetData);
 
       setSheet(sheetData);
     } catch (e) {
@@ -254,6 +320,28 @@ export default function Results() {
     });
   };
 
+  const updatePsychomotor = (index, value) => {
+    setPsychomotor((prev) => {
+      const copy = [...prev];
+      copy[index].score = value;
+      return copy;
+    });
+  };
+  const updateSports = (index, value) => {
+    setSports((prev) => {
+      const copy = [...prev];
+      copy[index].score = value;
+      return copy;
+    });
+  };
+  const updateClubs = (index, value) => {
+    setClubs((prev) => {
+      const copy = [...prev];
+      copy[index].score = value;
+      return copy;
+    });
+  };
+
   const selectStudent = (s) => {
     setSelected(s);
     console.log("Selected student", s);
@@ -263,7 +351,7 @@ export default function Results() {
 
   const handleTermChange = (termId) => {
     setSelectedTermId(termId);
-    if (selected) loadReport(s.id, termId, s.classId);
+    if (selected) loadReport(selected.id, termId, selected.classId);
   };
 
   const saveReportCard = async () => {
@@ -314,7 +402,7 @@ export default function Results() {
       //   },
       // });
 
-      loadReport(selected.id, selectedTermId);
+      loadReport(selected.id, selectedTermId, selected.classId);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -329,110 +417,652 @@ export default function Results() {
     );
     loadReport(selected.id, selectedTermId);
   };
-
+  console.log("Selected", selected);
+  console.log("Printer Report", printerReport);
   const printReport = () => {
-    if (!report || !selected) return;
+    if (!printerReport || !selected) return;
+
+    const classSection = [
+      "PreSchool",
+      "Preparatory Class 1",
+      "Preparatory Class 2",
+      "Preparatory Class 3",
+      "JSS 1",
+    ].includes(selected.class.className)
+      ? "Nursery Section"
+      : "Primary Section";
     const selectedTerm = allTerms.find((t) => t.id === selectedTermId);
     const termLabel = selectedTerm
       ? `${selectedTerm.sessionName} — ${selectedTerm.name}`
       : "";
-    const w = window.open("", "_blank");
+    const attendance = printerReport.attendance || {};
 
-    const rows = report.subjects
+    const watermarkHtml = school?.logoUrl
+      ? `
+    <div class="watermark">
+      <img src="${getMediaUrl(school.logoUrl)}" />
+    </div>
+  `
+      : "";
+
+    const behaviour = printerReport.assessments?.behaviour || [];
+    const psychomotor = printerReport.assessments?.psychomotor || [];
+    const sports = printerReport.assessments?.sports || [];
+    const clubs = printerReport.assessments?.clubs || [];
+
+    const comments = printerReport.comments || {};
+
+    const student = printerReport.student || {};
+
+    const absent = (attendance.schoolOpened || 0) - (attendance.present || 0);
+
+    const renderAssessmentGrid = (items) =>
+      items
+        .map(
+          (i) => `
+      <div class="assessment-item">
+        <span>${i.name}</span>
+        <strong>${i.score || "-"}</strong>
+      </div>
+    `,
+        )
+        .join("");
+
+    const subjectRows = printerReport.subjects
       .map(
         (r) => `
-      <tr>
-        <td>${r.subject}</td>
-        <td style="text-align:center;font-weight:500">${r.testScore}</td>
-        <td style="text-align:center;font-weight:500">${r.examScore}</td>
-        <td style="text-align:center;font-weight:500">${r.TotalScore}</td>
-        <td style="text-align:center;font-weight:500">${getOrdinal(r.subjectPosition) || "-"}</td>
-       
+<tr>
+<td>${r.subject}</td>
 
-        <td style="text-align:center;color:${gradeHex(r.grade)};font-weight:600">${r.grade}</td>
-        <td style="color:#6b7280">${r.grade === "A" ? "Excellent" : r.grade === "B" ? "Very Good" : r.grade === "C" ? "Average" : r.grade === "D" ? "Below Average" : "Fail"}</td>
-      </tr>
-    `,
+<td>${r.attendanceScore ?? 0}</td>
+
+<td>${r.assignmentScore ?? 0}</td>
+
+<td>${r.ca1Score ?? 0}</td>
+
+<td>${r.ca2Score ?? 0}</td>
+
+<td>${r.examScore ?? 0}</td>
+
+<td style="font-weight:700">
+${r.TotalScore ?? 0}
+</td>
+
+${selectedTerm?.name === "Second Term" || selectedTerm?.name === "Third Term" ? `<td>${r.firstTermScore ?? "-"}</td>` : ""}
+
+${selectedTerm?.name === "Third Term" ? `<td>${r.secondTermScore ?? "-"}</td>` : ""}
+
+<td>
+<span class="grade grade-${r.grade}">
+${r.grade}
+</span>
+</td>
+
+<td>
+${getOrdinal(r.subjectPosition)}
+</td>
+
+<td>
+${r.remark}
+</td>
+</tr>
+`,
       )
       .join("");
 
     const logoHtml = school?.logoUrl
-      ? `<img src="${getMediaUrl(school.logoUrl)}" style="height:64px;object-fit:contain;margin-bottom:6px"/>`
-      : '<div style="font-size:48px;line-height:1">🏫</div>';
+      ? `<img src="${getMediaUrl(school.logoUrl)}" class="logo"/>`
+      : "";
 
-    w.document.write(`<!DOCTYPE html><html><head>
-      <title>Report Card — ${selected.name}</title>
-      <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Roboto, Open Sans, Lato', serif; max-width: 720px; margin: 40px auto; color: #1a1f36; padding: 20px; }
-        .header { text-align: center; border-bottom: 3px double #1a1f36; padding-bottom: 18px; margin-bottom: 24px; }
-        .header h1 { font-size: 22px; margin: 6px 0 3px; }
-        .header .sub { font-size: 13px; color: #6b7280; margin: 2px 0; }
-        .header .title { font-size: 16px; font-weight: bold; margin-top: 12px; letter-spacing: .06em; text-transform: uppercase; }
-        .info { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
-        .info div { border: 1px solid #e5e7eb; padding: 8px 12px; border-radius: 6px; }
-        .info span { font-size: 10px; color: #9ca3af; display: block; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
-        table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        th { background: #f9fafb; padding: 9px 12px; text-align: left; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid #e5e7eb; }
-        td { padding: 9px 12px; border-bottom: 1px solid #f3f4f6; font-size: 14px; }
-        .summary { margin-top: 20px; display: flex; gap: 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
-        .summary div { flex: 1; padding: 14px; text-align: center; border-right: 1px solid #e5e7eb; }
-        .summary div:last-child { border-right: none; }
-        .summary .label { font-size: 11px; color: #9ca3af; text-transform: uppercase; margin-bottom: 4px; }
-        .summary .val { font-size: 22px; font-weight: 700; }
-        .sigs { margin-top: 48px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px; }
-        .sig { border-top: 1px solid #1a1f36; padding-top: 6px; font-size: 12px; color: #6b7280; }
-        @media print { body { margin: 10px; } }
-      </style>
-    </head><body>
-      <div class="header">
-        ${logoHtml}
-        <h1>${school?.name || "School Name"}</h1>
-        ${school?.address ? `<p class="sub">${school.address}</p>` : ""}
-        ${school?.phone ? `<p class="sub">${school.phone}</p>` : ""}
-        ${school?.motto ? `<p class="sub" style="font-style:italic;margin-top:4px">"${school.motto}"</p>` : ""}
-        <div class="title">Student Academic Report</div>
-      </div>
+    const passportHtml = student?.passportPhoto
+      ? `<img src="${getMediaUrl(student.passportPhoto)}" class="passport"/>`
+      : "";
 
-      <div class="info">
-        <div><span>Student Name</span>${selected.name}</div>
-        <div><span>Admission No.</span>${selected.admissionNumber}</div>
-        <div><span>Class</span>${selected.class.className}</div>
-        <div><span>Term</span>${termLabel}</div>
-        <div><span>No. of Subjects</span>${report.subjects?.length}</div>
-        <div><span>Date Issued</span>${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</div>
-      </div>
+    const principalSignature = school?.principalSignatureUrl
+      ? `
+    <img
+      src="${getMediaUrl(school.principalSignatureUrl)}"
+      class="signature-image"
+    />
+  `
+      : "";
 
-      <table>
-        <thead>
-          <tr>
-            <th>Subject</th>
-            <th style="text-align:center">Test Score</th>
-            <th style="text-align:center">Exam Score</th>
-            <th style="text-align:center">Total Score (/100)</th>
-            <th style="text-align:center">Subject Position</th>
-            <th style="text-align:center">Grade</th>
-            <th>Remark</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
+    const w = window.open("", "_blank");
 
-      <div class="summary">
-        <div><div class="label">Total Score</div><div class="val">${report.summary.totalScore}</div></div>
-        <div><div class="label">Average</div><div class="val">${report.summary.average}%</div></div>
-        <div><div class="label">Final Grade</div><div class="val" style="color:${gradeHex(report.summary.finalGrade)}">${report.summary.finalGrade}</div></div>
-        <div><div class="label">Class Position</div><div class="val" style="color:${gradeHex(report.summary.position)}">${getOrdinal(report.summary.position)}</div></div>
+    w.document.write(`
+<!DOCTYPE html>
+<html>
+<head>
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&display=swap" rel="stylesheet">
+<title>${student.name} Report Card</title>
 
-        </div>
+<style>
 
-      <div class="sigs">
-        <div class="sig">Class Teacher</div>
-        <div class="sig">Head of Department</div>
-        <div class="sig">Principal / Head Teacher</div>
-      </div>
-      <script>window.onload = () => window.print()</script>
-    </body></html>`);
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+}
+
+.report-card{
+  position:relative;
+  width:100%;
+}
+
+.watermark{
+  position:fixed;
+  top:50%;
+  left:50%;
+  transform:translate(-50%, -50%);
+  z-index:0;
+  pointer-events:none;
+}
+
+.watermark img{
+  width:800px;
+  height:800px;
+  object-fit:contain;
+  opacity:0.06;
+}
+
+@media print{
+
+  .watermark{
+    position:fixed;
+    top:50%;
+    left:50%;
+    transform:translate(-50%, -50%);
+  }
+
+  .watermark img{
+    opacity:0.05;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+  }
+
+}
+
+body{
+font-family:Arial,sans-serif;
+padding:20px;
+color:#111827;
+}
+
+:root {
+  --primary: #10b981;
+  --light: #d1fae5;
+  
+  /* Harmonized dark gray shades */
+  --dark-bg: #0f1715;     /* Dark background */
+  --dark-card: #1c2e28;   /* Dark card/border */
+  --dark-text: #a7f3d0;   /* Light green-gray text for dark mode */
+}
+
+.report-card{
+width:100%;
+}
+
+.header{
+display:grid;
+grid-template-columns:80px 1fr 80px;
+gap:5px;
+align-items:center;
+
+}
+
+
+
+.logo{
+width:150px;
+height:150px;
+object-fit:contain;
+}
+
+.passport{
+width:100px;
+height:120px;
+object-fit:cover;
+border:1px solid #cbd5e1;
+}
+
+.school-info{
+text-align:center;
+color:var(--dark-card);
+}
+
+
+
+.school-name{
+text-transform:capitalise;
+font-variant:small-caps;
+display:block;
+font-size:22px;
+font-weight:600;
+
+}
+
+.school-address{
+font-size:12px;
+margin-top:4px;
+}
+
+.report-title{
+font-size:20px;
+font-weight:600;
+
+margin-top:10px;
+}
+
+.student-name{
+font-size:25px;
+font-weight:700;
+font-style:italic;
+text-align:center;
+font-family: "Lucida Calligraphy", "Apple Chancery", "URW Chancery L", cursive;
+margin:10px 0;
+color:var(--dark-card);
+}
+
+.principal-title{
+  margin-top:10px;
+}
+
+.comment-grade{
+display:flex;
+justify-content: space-between;
+
+}
+
+.student-grid{
+display:grid;
+grid-template-columns:repeat(5,1fr);
+gap:10px;
+margin-bottom:5px;
+font-size:10px;
+}
+
+.section-title{
+background:var(--dark-bg);
+color:white;
+padding:3px;
+font-weight:600;
+font-size: 12px;
+margin-top:12px;
+margin-bottom:5px;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+margin-bottom:12px;
+}
+
+th{
+background:var(--dark-card);
+color:#d7dbd8;
+font-size:12px;
+padding:6px;
+border:1px solid #93c5fd;
+}
+
+td{
+padding:6px;
+border:1px solid #cbd5e1;
+font-size:10px;
+}
+
+.assessment-grid{
+display:grid;
+grid-template-columns:repeat(5,1fr);
+gap:5px;
+margin-bottom:12px;
+}
+
+.assessment-item{
+display:flex;
+justify-content:space-between;
+padding:2px;
+font-size:12px;
+border:1px solid #cbd5e1;
+background:#f8fafc;
+}
+
+.summary{
+display:grid;
+grid-template-columns:repeat(6,1fr);
+gap:8px;
+margin-top:10px;
+margin-bottom:5px;
+}
+
+.summary-card{
+background:var(--dark-card);
+padding:10px;
+text-align:center;
+border-radius:6px;
+}
+
+.summary-card .label{
+font-size:11px;
+color:#d7dbd8;
+}
+
+.summary-card .value{
+font-size:15px;
+font-weight:700;
+margin-top:4px;
+color:white
+}
+
+.comment-box{
+border:1px solid #cbd5e1;
+padding:10px;
+margin-bottom:10px;
+min-height:60px;
+}
+
+.grade{
+font-weight:bold;
+}
+
+.signature-section{
+margin-top:30px;
+display:flex;
+justify-content:space-between;
+align-items:flex-end;
+}
+
+.signature-image{
+height:60px;
+object-fit:contain;
+}
+
+.signature-line{
+width:220px;
+border-top:1px solid #111827;
+padding-top:5px;
+text-align:center;
+font-size:12px;
+}
+
+@media print{
+
+body{
+padding:10px;
+}
+
+.section-title, .summary-card, .value, .label {
+-webkit-print-color-adjust:exact;
+print-color-adjust:exact;
+}
+
+
+
+th{
+-webkit-print-color-adjust:exact;
+print-color-adjust:exact;
+}
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="report-card">
+${watermarkHtml}
+<div class="header">
+
+<div>
+${logoHtml}
+</div>
+
+<div class="school-info">
+<div class="school-name">
+${school?.name || ""}
+</div>
+
+<div class="school-address">
+${school?.address || ""}
+</div>
+
+<div class="report-title">
+${selectedTerm?.name || ""} ${selectedTerm?.sessionName || ""} REPORT SHEET
+</div>
+<div class="report-title">
+(${classSection})
+</div>
+
+</div>
+
+<div>
+${passportHtml}
+</div>
+
+</div>
+
+<div class="student-name">
+${student.name}
+</div>
+
+<div class="student-grid">
+
+<div>
+<b>Admission No:</b>
+${student.admissionNumber || ""}
+</div>
+
+<div>
+<b>Class: </b>
+${student.class.className || ""}
+</div>
+
+<div>
+<b>School Opened: </b> 
+${attendance.schoolOpened || 0}
+</div>
+
+<div>
+<b>Present: </b>
+${attendance.present || 0}
+</div>
+<div>
+<b>Punctual: </b>
+${attendance.punctual || 0}
+</div>
+
+<div>
+<b>Gender:</b>
+${student.gender || ""}
+</div>
+
+<div>
+<b>Date Of Birth:</b>
+${student.dateOfBirth ? new Date(student.dateOfBirth).toLocaleDateString() : ""}
+</div>
+
+<div>
+<b>No in Class :</b>
+${printerReport.summary.classSize}
+</div>
+
+<div>
+<b>Term Closes:</b>
+${new Date().toLocaleDateString()}
+</div>
+
+<div>
+<b>Next Term Begins:</b>
+${new Date().toLocaleDateString()}
+</div>
+
+</div>
+
+
+
+<div class="section-title">
+1. BEHAVIOUR & PSYCHOMOTOR
+</div>
+
+<div class="assessment-grid">
+${renderAssessmentGrid(behaviour)}
+</div>
+<div class="assessment-grid">
+${renderAssessmentGrid(psychomotor)}
+</div>
+
+<div class="section-title">
+4. PERFORMANCE IN SUBJECTS
+</div>
+
+<table>
+
+<thead>
+
+<tr>
+
+<th>Subject</th>
+
+<th>Att</th>
+
+<th>Ass</th>
+
+<th>CA1</th>
+
+<th>CA2</th>
+
+<th>Exam</th>
+
+<th>Total</th>
+
+${selectedTerm?.name === "Second Term" || selectedTerm?.name === "Third Term" ? "<th>1st</th>" : ""}
+
+${selectedTerm?.name === "Third Term" ? "<th>2nd</th>" : ""}
+
+<th>Grade</th>
+
+<th>Pos</th>
+
+<th>Remark</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+${subjectRows}
+
+</tbody>
+
+</table>
+
+<div class="summary">
+
+<div class="summary-card">
+<div class="label">Total</div>
+<div class="value">${printerReport.summary.totalScore}</div>
+</div>
+
+<div class="summary-card">
+<div class="label">Average</div>
+<div class="value">${printerReport.summary.average}%</div>
+</div>
+
+<div class="summary-card">
+<div class="label">Grade</div>
+<div class="value">${printerReport.summary.finalGrade}</div>
+</div>
+
+<div class="summary-card">
+<div class="label">Position</div>
+<div class="value">${getOrdinal(printerReport.summary.position)}</div>
+</div>
+
+<div class="summary-card">
+<div class="label">Subjects</div>
+<div class="value">${printerReport.summary.subjectsOffered}</div>
+</div>
+
+<div class="summary-card">
+<div class="label">No in Class</div>
+<div class="value">${printerReport.summary.classSize}</div>
+</div>
+
+</div>
+
+<div class="section-title">
+5. SPORTS
+</div>
+
+<div class="assessment-grid">
+${renderAssessmentGrid(sports)}
+</div>
+
+<div class="section-title">
+6. CLUBS
+</div>
+
+<div class="assessment-grid">
+${renderAssessmentGrid(clubs)}
+</div>
+
+
+
+
+<div class="comment-grade" style="display: flex; gap: 20px;">
+<div style="width: 60%;">
+    <div class="section-title">
+     COMMENTS & REMARKS
+    </div>
+    <table style="width: 100%;">
+       <tr > <td><b>Sport Mistress:</b></td> <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.teacher || ""}</td> </tr>
+       <tr> <td><b>Class Teacher:</b></td>  <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.teacher || ""}</td> </tr>
+       <tr> <td><b>Head Teachers:</b></td>  <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.principal || ""}</td> </tr>
+    </table>
+</div>
+
+<div style="width: 40%;">
+    <div class="section-title">
+     GRADE INTERPRETATION
+    </div>
+    <table style="width: 100%;">
+       <tr> <td><b> (80 - 100)</b> </td> <td><b>A</b></td> <td>Excellent</td></tr>
+       <tr> <td><b> (60 - 79)</b> </td>  <td><b>B</b></td> <td>Very Good</td></tr>
+       <tr> <td><b> (40 - 59)</b> </td>  <td><b>C</b></td> <td>Good</td></tr>
+       <tr> <td><b> (0 - 39)</b> </td>   <td><b>P</b></td> <td>Poor</td></tr>
+    </table>
+</div>
+</div>
+
+
+
+<div style="margin-top:15px;">
+${principalSignature}
+</div>
+<div class="signature-line">
+Principal
+</div>
+
+
+</div>
+
+</div>
+
+</div>
+
+<script>
+window.onload = () => {
+setTimeout(() => window.print(), 500);
+};
+</script>
+
+</body>
+</html>
+`);
+
     w.document.close();
   };
 
@@ -609,7 +1239,7 @@ export default function Results() {
                 </p>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                {report?.subjects?.length > 0 && (
+                {report?.academics.length > 0 && (
                   <ActionButton
                     variant="secondary"
                     size="sm"
@@ -713,6 +1343,7 @@ export default function Results() {
                           <input
                             type="number"
                             value={attendance.schoolOpened}
+                            disabled
                             onChange={(e) =>
                               setAttendance({
                                 ...attendance,
@@ -736,7 +1367,6 @@ export default function Results() {
                             style={inputStyle}
                           />
                         </FormField>
-
                         <FormField label="Punctual">
                           <input
                             type="number"
@@ -751,21 +1381,19 @@ export default function Results() {
                           />
                         </FormField>
 
-                        <div
-                          style={{
-                            background: "#f9fafb",
-                            borderRadius: 8,
-                            padding: 12,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontWeight: 700,
-                          }}
-                        >
-                          Absent:
-                          {(attendance.schoolOpened || 0) -
-                            (attendance.present || 0)}
-                        </div>
+                        <FormField label="Absent">
+                          <input
+                            value={
+                              Number(attendance.schoolOpened || 0) -
+                              Number(attendance.present || 0)
+                            }
+                            disabled
+                            style={{
+                              ...inputStyle,
+                              background: "#f9fafb",
+                            }}
+                          />
+                        </FormField>
                       </div>
                     </div>
 
@@ -787,9 +1415,6 @@ export default function Results() {
                             "CA2",
                             "Exam",
                             "Total",
-                            "Grade",
-                            "Position",
-                            "Remark",
                           ].map((h) => (
                             <th
                               key={h}
@@ -812,12 +1437,14 @@ export default function Results() {
 
                       <tbody>
                         {sheet.map((row, i) => (
-                          <tr key={row.subjectId}>
+                          <tr key={row.id} style={{ margin: " 5px 0" }}>
                             <td>{row.subject}</td>
 
                             <td>
                               <input
                                 type="number"
+                                min={0}
+                                max={5}
                                 value={row.attendanceScore}
                                 onChange={(e) =>
                                   updateSheet(
@@ -833,6 +1460,8 @@ export default function Results() {
                             <td>
                               <input
                                 type="number"
+                                min={0}
+                                max={5}
                                 value={row.assignmentScore}
                                 onChange={(e) =>
                                   updateSheet(
@@ -848,6 +1477,8 @@ export default function Results() {
                             <td>
                               <input
                                 type="number"
+                                min={0}
+                                max={15}
                                 value={row.ca1Score}
                                 onChange={(e) =>
                                   updateSheet(i, "ca1Score", e.target.value)
@@ -859,6 +1490,8 @@ export default function Results() {
                             <td>
                               <input
                                 type="number"
+                                min={0}
+                                max={15}
                                 value={row.ca2Score}
                                 onChange={(e) =>
                                   updateSheet(i, "ca2Score", e.target.value)
@@ -870,6 +1503,8 @@ export default function Results() {
                             <td>
                               <input
                                 type="number"
+                                min={0}
+                                max={60}
                                 value={row.examScore}
                                 onChange={(e) =>
                                   updateSheet(i, "examScore", e.target.value)
@@ -882,16 +1517,16 @@ export default function Results() {
                               <strong>{row.totalScore}</strong>
                             </td>
 
-                            <td>
+                            {/* <td>
                               <Badge
                                 label={row.grade}
                                 color={gradeColor(row.grade)}
                               />
-                            </td>
+                            </td> */}
 
-                            <td>{row.subjectPosition}</td>
+                            {/* <td>{row.subjectPosition}</td>
 
-                            <td>{row.remark}</td>
+                            <td>{row.remark}</td> */}
                           </tr>
                           // <tr
                           //   key={row.subjectId}
@@ -1041,89 +1676,138 @@ export default function Results() {
                         {behaviour.map((item, index) => (
                           <FormField key={item.categoryId} label={item.name}>
                             <select
-                              value={item.score || ""}
+                              value={item.score || "A"}
                               onChange={(e) =>
                                 updateBehaviour(index, e.target.value)
                               }
                               style={inputStyle}
                             >
-                              <option value="">Select</option>
-                              <option>A</option>
-                              <option>B</option>
-                              <option>C</option>
-                              <option>D</option>
-                              <option>E</option>
+                              {/* <option value="">Select</option> */}
+                              <option value="A">A</option>
+                              <option value="B">B</option>
+                              <option value="C">C</option>
+                              <option value="P">P</option>
                             </select>
                           </FormField>
                         ))}
                       </div>
                     </div>
 
-                    {/* <div
+                    <div
                       style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          "repeat(auto-fit,minmax(350px,1fr))",
-                        gap: 20,
+                        background: "#fff",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 12,
+                        padding: 20,
                         marginTop: 20,
                       }}
-                    > */}
-                    <h3>PSychomotor Assessment</h3>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          "repeat(auto-fit,minmax(250px,1fr))",
-                        gap: 16,
-                      }}
                     >
-                      {psychomotor.map((item, index) => (
-                        <FormField key={item.categoryId} label={item.name}>
-                          <select
-                            value={item.score || ""}
-                            onChange={(e) =>
-                              updatePsychomotor(index, e.target.value)
-                            }
-                            style={inputStyle}
-                          >
-                            <option value="">Select</option>
-                            <option>A</option>
-                            <option>B</option>
-                            <option>C</option>
-                            <option>D</option>
-                            <option>E</option>
-                          </select>
-                        </FormField>
-                      ))}
+                      <h3>PSychomotor Assessment</h3>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fit,minmax(250px,1fr))",
+                          gap: 16,
+                        }}
+                      >
+                        {psychomotor.map((item, index) => (
+                          <FormField key={item.categoryId} label={item.name}>
+                            <select
+                              value={item.score || "A"}
+                              onChange={(e) =>
+                                updatePsychomotor(index, e.target.value)
+                              }
+                              style={inputStyle}
+                            >
+                              {/* <option value="">Select</option> */}
+                              <option value="A">A</option>
+                              <option value="B">B</option>
+                              <option value="C">C</option>
+                              <option value="P">P</option>
+                            </select>
+                          </FormField>
+                        ))}
+                      </div>
                     </div>
 
-                    <h3>Sports Assessment</h3>
+                    <div
+                      style={{
+                        background: "#fff",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 12,
+                        padding: 20,
+                        marginTop: 20,
+                      }}
+                    >
+                      <h3>Sports Assessment</h3>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fit,minmax(250px,1fr))",
+                          gap: 16,
+                        }}
+                      >
+                        {sports.map((item, index) => (
+                          <FormField key={item.categoryId} label={item.name}>
+                            <select
+                              value={item.score || ""}
+                              onChange={(e) =>
+                                updateSports(index, e.target.value)
+                              }
+                              style={inputStyle}
+                            >
+                              {/* <option value="">Select</option> */}
+                              <option value="A">A</option>
+                              <option value="B">B</option>
+                              <option value="C">C</option>
+                              <option value="P">P</option>
+                            </select>
+                          </FormField>
+                        ))}
+                      </div>
+                    </div>
 
                     <div
                       style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          "repeat(auto-fit,minmax(250px,1fr))",
-                        gap: 16,
+                        background: "#fff",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 12,
+                        padding: 20,
+                        marginTop: 20,
                       }}
                     >
-                      {sports.map((item, index) => (
-                        <FormField key={item.categoryId} label={item.name}>
-                          <select
-                            value={item.score || ""}
-                            onChange={(e) => updateSport(index, e.target.value)}
-                            style={inputStyle}
-                          >
-                            <option value="">Select</option>
-                            <option>A</option>
-                            <option>B</option>
-                            <option>C</option>
-                            <option>D</option>
-                            <option>E</option>
-                          </select>
-                        </FormField>
-                      ))}
+                      <h3>Clubs Assessment</h3>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fit,minmax(250px,1fr))",
+                          gap: 16,
+                        }}
+                      >
+                        {clubs.map((item, index) => (
+                          <FormField key={item.categoryId} label={item.name}>
+                            <select
+                              value={item.score || "A"}
+                              onChange={(e) =>
+                                updateClubs(index, e.target.value)
+                              }
+                              style={inputStyle}
+                            >
+                              {/* <option value="">Select</option> */}
+                              <option value="A">A</option>
+                              <option value="B">B</option>
+                              <option value="C">C</option>
+                              <option value="D">P</option>
+                            </select>
+                          </FormField>
+                        ))}
+                      </div>
                     </div>
 
                     <div

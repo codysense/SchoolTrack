@@ -56,21 +56,27 @@ model Session {
 
 model Term {
   id        String   @id @default(cuid())
-  name      String                        // "First Term" | "Second Term" | "Third Term"
+  name      String
   sessionId String
+
   session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
   isCurrent Boolean  @default(false)
+
   startDate DateTime?
   endDate   DateTime?
+
+  schoolOpened Int? @default(0)
+
   createdAt DateTime @default(now())
 
   payments            Payment[]
   optionalFeeAssigns  OptionalFeeAssign[]
   results             Result[]
+  assessments         Assessment[]
+  attendanceSummaries AttendanceSummary[]
 
   @@unique([sessionId, name])
-  assessments Assessment[]
-  attendanceSummaries AttendanceSummary[]
 }
 
 // Teachers 
@@ -180,7 +186,7 @@ model Assessment {
 
   student     Student @relation(fields: [studentId], references: [id])
   term        Term @relation(fields: [termId], references: [id])
-  category    AssessmentCategory @relation(fields: [categoryId], references: [id])
+  category    AssessmentCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, termId, categoryId])
 }
