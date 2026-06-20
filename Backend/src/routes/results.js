@@ -17,7 +17,7 @@ function getGrade(score) {
 const commentCategories = await prisma.assessmentCategory.findMany({
   where: {
     name: {
-      in: ["Teacher Comment", "Principal Comment"],
+      in: ["Teacher Comment", "Principal Comment", "Sport Mistress Comment"],
     },
   },
 });
@@ -427,6 +427,12 @@ router.get("/student-result/:studentId", async (req, res) => {
           a.category.type === "Comments" &&
           a.category.name === "Teacher Comment",
       )?.score || "";
+    const sportMistressComment =
+      assessments.find(
+        (a) =>
+          a.category.type === "Comments" &&
+          a.category.name === "Sport Mistress Comment",
+      )?.score || "";
 
     const principalComment =
       assessments.find(
@@ -583,10 +589,17 @@ router.get("/student-result/:studentId", async (req, res) => {
       },
 
       school,
+      nextTermDateBegins: currentTerm.nextTermDateBegins
+        ? new Date(currentTerm.nextTermDateBegins)
+        : "",
 
       term: {
         id: currentTerm.id,
         name: currentTerm.name,
+        nextTermDateBegins: currentTerm.nextTermDateBegins
+          ? new Date(currentTerm.nextTermDateBegins)
+          : "",
+        termCloseDate: currentTerm.endDate ? new Date(currentTerm.endDate) : "",
       },
 
       session: currentTerm.session,
@@ -605,6 +618,7 @@ router.get("/student-result/:studentId", async (req, res) => {
       comments: {
         teacher: teacherComment,
         principal: principalComment,
+        sportMistress: sportMistressComment,
       },
 
       summary: {
@@ -659,6 +673,8 @@ router.post("/report-card", staffOnly, async (req, res) => {
     assessments = [],
     comments = {},
   } = req.body;
+
+  // console.log("COmments", comments);
 
   // console.log("Received report card data:", req.body);
 
@@ -843,6 +859,10 @@ router.post("/report-card", staffOnly, async (req, res) => {
       (c) => c.name === "Principal Comment",
     );
 
+    const sportMistressCategory = commentCategories.find(
+      (c) => c.name === "Sport Mistress Comment",
+    );
+
     if (teacherCategory) {
       allAssessments.push({
         categoryId: teacherCategory.id,
@@ -855,6 +875,13 @@ router.post("/report-card", staffOnly, async (req, res) => {
       allAssessments.push({
         categoryId: principalCategory.id,
         score: comments.principal ?? "",
+        remark: "",
+      });
+    }
+    if (sportMistressCategory) {
+      allAssessments.push({
+        categoryId: sportMistressCategory.id,
+        score: comments.sportMistress ?? "",
         remark: "",
       });
     }
@@ -1094,6 +1121,9 @@ router.get("/report-card/:studentId", async (req, res) => {
     const principalComment =
       mergedTemplate.Comments?.find((x) => x.name === "Principal Comment")
         ?.score || "";
+    const sportMistressComment =
+      mergedTemplate.Comments?.find((x) => x.name === "Sport Mistress Comment")
+        ?.score || "";
 
     //Get current term details
     const currentTerm = await prisma.term.findUnique({
@@ -1120,6 +1150,8 @@ router.get("/report-card/:studentId", async (req, res) => {
       attendance: {
         schoolOpened: currentTerm.schoolOpened || 0,
         present: currentTerm.schoolOpened || 0,
+        termDateClose: currentTerm.endDate,
+        nextTermDateBegins: currentTerm.nextTermDateBegins || termDateClose,
         punctual: attendance?.punctual || 0,
       },
 
@@ -1136,6 +1168,7 @@ router.get("/report-card/:studentId", async (req, res) => {
       comments: {
         teacher: teacherComment,
         principal: principalComment,
+        sportMistress: sportMistressComment,
       },
     });
   } catch (error) {

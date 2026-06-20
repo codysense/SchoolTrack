@@ -73,6 +73,7 @@ export default function Sessions() {
           startDate: dateEdit.startDate,
           endDate: dateEdit.endDate,
           schoolOpened: dateEdit.schoolOpened,
+          nextTermDateBegins: dateEdit.nextTermDateBegins,
         },
       });
       setDateEdit(null);
@@ -330,6 +331,33 @@ export default function Sessions() {
                               }}
                             />
                           </div>
+                          <div style={{ marginBottom: 8 }}>
+                            <label
+                              style={{
+                                fontSize: 11,
+                                color: "#6b7280",
+                                display: "block",
+                                marginBottom: 2,
+                              }}
+                            >
+                              Next Term Date begins:
+                            </label>
+                            <input
+                              type="date"
+                              value={dateEdit.nextTermDateBegins || ""}
+                              onChange={(e) =>
+                                setDateEdit((p) => ({
+                                  ...p,
+                                  nextTermDateBegins: e.target.value,
+                                }))
+                              }
+                              style={{
+                                ...inputStyle,
+                                fontSize: 12,
+                                padding: "5px 8px",
+                              }}
+                            />
+                          </div>
                           <div>
                             <label
                               style={{
@@ -395,6 +423,8 @@ export default function Sessions() {
                                 startDate: term.startDate?.split("T")[0] || "",
                                 endDate: term.endDate?.split("T")[0] || "",
                                 schoolOpened: term.schoolOpened || "",
+                                nextTermDateBegins:
+                                  term.nextTermDateBegins?.split("T")[0] || "",
                               })
                             }
                           >

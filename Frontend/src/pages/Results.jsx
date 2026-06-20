@@ -18,6 +18,51 @@ function gradeColor(g) {
   );
 }
 
+// function getOrdinal(n) {
+//   const s = ["th", "st", "nd", "rd"];
+//   const v = n % 100;
+//   return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
+// }
+
+function formatHijrahDate(dateInput) {
+  const date = new Date(dateInput);
+
+  // Gregorian parts
+  const weekday = new Intl.DateTimeFormat("en-GB", {
+    weekday: "long",
+  }).format(date);
+
+  const gregDay = getOrdinal(date.getDate());
+
+  const gregMonth = new Intl.DateTimeFormat("en-GB", {
+    month: "long",
+  }).format(date);
+
+  const gregYear = date.getFullYear();
+
+  // Hijri parts
+  const hijriFormatter = new Intl.DateTimeFormat(
+    "en-TN-u-ca-islamic-umalqura",
+    {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    },
+  );
+
+  const parts = hijriFormatter.formatToParts(date);
+
+  const hijriDay = getOrdinal(
+    Number(parts.find((p) => p.type === "day")?.value),
+  );
+
+  const hijriMonth = parts.find((p) => p.type === "month")?.value;
+
+  const hijriYear = parts.find((p) => p.type === "year")?.value;
+
+  return `${weekday} ${hijriDay} ${hijriMonth} ${hijriYear} AH (${gregDay} ${gregMonth}, ${gregYear})`;
+}
+
 export function getOrdinal(n) {
   if (!n) return "-";
 
@@ -76,6 +121,7 @@ export default function Results() {
   const [comments, setComments] = useState({
     teacher: "",
     principal: "",
+    sportMistress: "",
   });
 
   const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace("/api", "");
@@ -137,6 +183,7 @@ export default function Results() {
         data.attendance || {
           schoolOpened: "",
           present: "",
+          punctual: "",
         },
       );
 
@@ -427,7 +474,6 @@ export default function Results() {
       "Preparatory Class 1",
       "Preparatory Class 2",
       "Preparatory Class 3",
-      "JSS 1",
     ].includes(selected.class.className)
       ? "Nursery Section"
       : "Primary Section";
@@ -636,7 +682,7 @@ color:var(--dark-card);
 text-transform:capitalise;
 font-variant:small-caps;
 display:block;
-font-size:22px;
+font-size:28px;
 font-weight:600;
 
 }
@@ -711,9 +757,24 @@ border:1px solid #cbd5e1;
 font-size:10px;
 }
 
+.next-term-promotion{
+display:flex;
+justify-content:space-between;
+margin-top:5px;
+font-size:10px;
+font-style:italic;
+}
+
 .assessment-grid{
 display:grid;
 grid-template-columns:repeat(5,1fr);
+gap:5px;
+margin-bottom:12px;
+}
+
+.assessment-grid-club{
+display:grid;
+grid-template-columns:repeat(3,1fr);
 gap:5px;
 margin-bottom:12px;
 }
@@ -890,13 +951,10 @@ ${printerReport.summary.classSize}
 
 <div>
 <b>Term Closes:</b>
-${new Date().toLocaleDateString()}
+${formatHijrahDate(printerReport.term.termCloseDate?.split("T")[0]) || ""}
 </div>
 
-<div>
-<b>Next Term Begins:</b>
-${new Date().toLocaleDateString()}
-</div>
+
 
 </div>
 
@@ -914,7 +972,7 @@ ${renderAssessmentGrid(psychomotor)}
 </div>
 
 <div class="section-title">
-4. PERFORMANCE IN SUBJECTS
+2. PERFORMANCE IN SUBJECTS
 </div>
 
 <table>
@@ -994,7 +1052,7 @@ ${subjectRows}
 </div>
 
 <div class="section-title">
-5. SPORTS
+3. SPORTS
 </div>
 
 <div class="assessment-grid">
@@ -1002,10 +1060,10 @@ ${renderAssessmentGrid(sports)}
 </div>
 
 <div class="section-title">
-6. CLUBS
+4. CLUBS - OFFICE HELD
 </div>
 
-<div class="assessment-grid">
+<div class="assessment-grid-club">
 ${renderAssessmentGrid(clubs)}
 </div>
 
@@ -1015,11 +1073,11 @@ ${renderAssessmentGrid(clubs)}
 <div class="comment-grade" style="display: flex; gap: 20px;">
 <div style="width: 60%;">
     <div class="section-title">
-     COMMENTS & REMARKS
+    5 COMMENTS & REMARKS
     </div>
     <table style="width: 100%;">
        <tr > <td><b>Sport Mistress:</b></td> <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.teacher || ""}</td> </tr>
-       <tr> <td><b>Class Teacher:</b></td>  <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.teacher || ""}</td> </tr>
+       <tr> <td><b>Class Teacher:</b></td>  <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.sportMistress || ""}</td> </tr>
        <tr> <td><b>Head Teachers:</b></td>  <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.principal || ""}</td> </tr>
     </table>
 </div>
@@ -1043,7 +1101,16 @@ ${renderAssessmentGrid(clubs)}
 ${principalSignature}
 </div>
 <div class="signature-line">
-Principal
+Director/Head
+</div>
+
+<div class="next-term-promotion">
+<div>
+<b>Next Term Begins:</b>
+${formatHijrahDate(selectedTerm.nextTermDateBegins?.split("T")[0]) || ""}
+</div>
+
+
 </div>
 
 
@@ -1793,17 +1860,17 @@ setTimeout(() => window.print(), 500);
                         {clubs.map((item, index) => (
                           <FormField key={item.categoryId} label={item.name}>
                             <select
-                              value={item.score || "A"}
+                              value={item.score || ""}
                               onChange={(e) =>
                                 updateClubs(index, e.target.value)
                               }
                               style={inputStyle}
                             >
-                              {/* <option value="">Select</option> */}
-                              <option value="A">A</option>
-                              <option value="B">B</option>
-                              <option value="C">C</option>
-                              <option value="D">P</option>
+                              <option value="">Choose Office</option>
+                              <option value="Member">Member</option>
+                              <option value="Representative">
+                                Representative
+                              </option>
                             </select>
                           </FormField>
                         ))}
@@ -1829,7 +1896,7 @@ setTimeout(() => window.print(), 500);
                       >
                         <FormField label="Teacher Comment">
                           <textarea
-                            rows={4}
+                            rows={2}
                             value={comments.teacher}
                             onChange={(e) =>
                               setComments({
@@ -1840,10 +1907,23 @@ setTimeout(() => window.print(), 500);
                             style={inputStyle}
                           />
                         </FormField>
+                        <FormField label="Sport Mistress Comment">
+                          <textarea
+                            rows={2}
+                            value={comments.sportMistress}
+                            onChange={(e) =>
+                              setComments({
+                                ...comments,
+                                sportMistress: e.target.value,
+                              })
+                            }
+                            style={inputStyle}
+                          />
+                        </FormField>
 
                         <FormField label="Principal Comment">
                           <textarea
-                            rows={4}
+                            rows={2}
                             value={comments.principal}
                             onChange={(e) =>
                               setComments({

@@ -133,7 +133,7 @@ router.put("/terms/:termId/set-current", adminOnly, async (req, res) => {
 // ── PUT update term dates ─────────────────────────────────────────────────────
 router.put("/terms/:termId", adminOnly, async (req, res) => {
   try {
-    const { startDate, endDate, schoolOpened } = req.body;
+    const { startDate, endDate, schoolOpened, nextTermDateBegins } = req.body;
 
     const schoolOpenedDays =
       startDate && endDate && !schoolOpened
@@ -151,6 +151,10 @@ router.put("/terms/:termId", adminOnly, async (req, res) => {
         endDate: endDate ? new Date(endDate) : null,
 
         schoolOpened: schoolOpenedDays,
+
+        nextTermDateBegins: nextTermDateBegins
+          ? new Date(nextTermDateBegins)
+          : null,
       },
 
       include: {

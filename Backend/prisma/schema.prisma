@@ -65,6 +65,7 @@ model Term {
 
   startDate DateTime?
   endDate   DateTime?
+  nextTermDateBegins DateTime?
 
   schoolOpened Int? @default(0)
 
