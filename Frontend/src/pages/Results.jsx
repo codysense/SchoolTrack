@@ -24,7 +24,7 @@ function gradeColor(g) {
 //   return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
 // }
 
-function formatHijrahDate(dateInput) {
+export function formatHijrahDate(dateInput) {
   const date = new Date(dateInput);
 
   // Gregorian parts
@@ -32,7 +32,7 @@ function formatHijrahDate(dateInput) {
     weekday: "long",
   }).format(date);
 
-  const gregDay = getOrdinal(date.getDate());
+  const gregDay = getOrdinalHijri(date.getDate());
 
   const gregMonth = new Intl.DateTimeFormat("en-GB", {
     month: "long",
@@ -52,7 +52,7 @@ function formatHijrahDate(dateInput) {
 
   const parts = hijriFormatter.formatToParts(date);
 
-  const hijriDay = getOrdinal(
+  const hijriDay = getOrdinalHijri(
     Number(parts.find((p) => p.type === "day")?.value),
   );
 
@@ -68,8 +68,20 @@ export function getOrdinal(n) {
 
   const s = ["th", "st", "nd", "rd"];
   const v = n % 100;
+  const finalPosition = n + (s[(v - 20) % 10] || s[v] || s[0]);
+  console.log("Final Position", finalPosition);
 
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  return finalPosition.includes("1st", "2nd", "3rd") ? finalPosition : "Nil";
+}
+export function getOrdinalHijri(n) {
+  if (!n) return "-";
+
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  const finalPosition = n + (s[(v - 20) % 10] || s[v] || s[0]);
+  console.log("Final Position", finalPosition);
+
+  return finalPosition;
 }
 
 function gradeHex(g) {
@@ -78,6 +90,15 @@ function gradeHex(g) {
       g
     ] || "#6b7280"
   );
+}
+
+export function formatNameWithComma(name) {
+  if (!name) return "";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length <= 1) return name;
+  const first = parts.shift();
+  const rest = parts.join(" ");
+  return `${first}, ${rest}`;
 }
 
 const cellInput = {
@@ -470,11 +491,11 @@ export default function Results() {
     if (!printerReport || !selected) return;
 
     const classSection = [
-      "PreSchool",
-      "Preparatory Class 1",
-      "Preparatory Class 2",
-      "Preparatory Class 3",
-    ].includes(selected.class.className)
+      "preschool",
+      "preparatory class 1",
+      "preparatory class 2",
+      "preparatory class 3",
+    ].includes(selected.class.className.toLowerCase())
       ? "Nursery Section"
       : "Primary Section";
     const selectedTerm = allTerms.find((t) => t.id === selectedTermId);
@@ -524,7 +545,7 @@ export default function Results() {
 
 <td>${r.assignmentScore ?? 0}</td>
 
-<td>${r.ca1Score ?? 0}</td>
+${classSection.toLowerCase() === "Primary Section".toLowerCase() ? <td>${r.ca1Score ?? 0}</td> : ""}
 
 <td>${r.ca2Score ?? 0}</td>
 
@@ -580,7 +601,7 @@ ${r.remark}
 <html>
 <head>
 <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&display=swap" rel="stylesheet">
-<title>${student.name} Report Card</title>
+<title>${formatNameWithComma(student.name)} Report Card</title>
 
 <style>
 
@@ -639,9 +660,9 @@ color:#111827;
   --light: #d1fae5;
   
   /* Harmonized dark gray shades */
-  --dark-bg: #0f1715;     /* Dark background */
+  --dark-bg: #131414ee;     /* Dark background */
   --dark-card: #1c2e28;   /* Dark card/border */
-  --dark-text: #a7f3d0;   /* Light green-gray text for dark mode */
+  --dark-text: #c7d1cf;   /* Light green-gray text for dark mode */
 }
 
 .report-card{
@@ -684,6 +705,7 @@ font-variant:small-caps;
 display:block;
 font-size:28px;
 font-weight:600;
+font-family:"Times New Roman", Times, serif;
 
 }
 
@@ -721,18 +743,18 @@ justify-content: space-between;
 
 .student-grid{
 display:grid;
-grid-template-columns:repeat(5,1fr);
+grid-template-columns:repeat(4,1fr);
 gap:10px;
 margin-bottom:5px;
 font-size:10px;
 }
 
 .section-title{
-background:var(--dark-bg);
-color:white;
+background:var(--dark-text);
+color:var(--dark-bg);
 padding:3px;
 font-weight:600;
-font-size: 12px;
+font-size: 10px;
 margin-top:12px;
 margin-bottom:5px;
 }
@@ -744,17 +766,17 @@ margin-bottom:12px;
 }
 
 th{
-background:var(--dark-card);
-color:#d7dbd8;
-font-size:12px;
-padding:6px;
+background:var(--dark-text);
+color:var(--dark-bg);
+font-size:8px;
+padding:4px;
 border:1px solid #93c5fd;
 }
 
 td{
-padding:6px;
+padding:3px;
 border:1px solid #cbd5e1;
-font-size:10px;
+font-size:8px;
 }
 
 .next-term-promotion{
@@ -783,7 +805,7 @@ margin-bottom:12px;
 display:flex;
 justify-content:space-between;
 padding:2px;
-font-size:12px;
+font-size:10px;
 border:1px solid #cbd5e1;
 background:#f8fafc;
 }
@@ -797,22 +819,23 @@ margin-bottom:5px;
 }
 
 .summary-card{
-background:var(--dark-card);
-padding:10px;
+background:var(--dark-bg);
+padding:6px;
 text-align:center;
 border-radius:6px;
 }
 
 .summary-card .label{
-font-size:11px;
-color:#d7dbd8;
+font-size:10px;
+font-weight:500;
+color:var(--dark-text);
 }
 
 .summary-card .value{
-font-size:15px;
-font-weight:700;
+font-size:10px;
+font-weight:600;
 margin-top:4px;
-color:white
+color:var(--dark-text);
 }
 
 .comment-box{
@@ -890,10 +913,10 @@ ${school?.address || ""}
 </div>
 
 <div class="report-title">
-${selectedTerm?.name || ""} ${selectedTerm?.sessionName || ""} REPORT SHEET
+${selectedTerm?.name.toUpperCase() || ""} ${selectedTerm?.sessionName || ""} REPORT SHEET
 </div>
 <div class="report-title">
-(${classSection})
+(${classSection.toUpperCase()})
 </div>
 
 </div>
@@ -905,7 +928,7 @@ ${passportHtml}
 </div>
 
 <div class="student-name">
-${student.name}
+${formatNameWithComma(student.name)}
 </div>
 
 <div class="student-grid">
@@ -944,13 +967,10 @@ ${student.gender || ""}
 ${student.dateOfBirth ? new Date(student.dateOfBirth).toLocaleDateString() : ""}
 </div>
 
-<div>
-<b>No in Class :</b>
-${printerReport.summary.classSize}
-</div>
+
 
 <div>
-<b>Term Closes:</b>
+<b>Term Closed:</b>
 ${formatHijrahDate(printerReport.term.termCloseDate?.split("T")[0]) || ""}
 </div>
 
@@ -987,9 +1007,9 @@ ${renderAssessmentGrid(psychomotor)}
 
 <th>Ass</th>
 
-<th>CA1</th>
+${classSection.toLowerCase() === "primary section" ? "<th>CA1</th>" : ""}
 
-<th>CA2</th>
+  ${classSection.toLowerCase() === "primary section" ? "<th>CA2</th>" : "<th>CA</th>"}
 
 <th>Exam</th>
 
@@ -1059,7 +1079,7 @@ ${subjectRows}
 ${renderAssessmentGrid(sports)}
 </div>
 
-<div class="section-title">
+<div class="section-title" style="bottom-margin:5px">
 4. CLUBS - OFFICE HELD
 </div>
 
@@ -1071,18 +1091,18 @@ ${renderAssessmentGrid(clubs)}
 
 
 <div class="comment-grade" style="display: flex; gap: 20px;">
-<div style="width: 60%;">
+<div style="width: 60%; margin-top:0;">
     <div class="section-title">
     5 COMMENTS & REMARKS
     </div>
     <table style="width: 100%;">
-       <tr > <td><b>Sport Mistress:</b></td> <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.teacher || ""}</td> </tr>
-       <tr> <td><b>Class Teacher:</b></td>  <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.sportMistress || ""}</td> </tr>
-       <tr> <td><b>Head Teachers:</b></td>  <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.principal || ""}</td> </tr>
+       <tr > <td><b>Sports Mistress:</b></td> <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.sportMistress || ""}</td> </tr>
+       <tr> <td><b>Class Teacher:</b></td>  <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.teacher || ""}</td> </tr>
+       <tr> <td><b>Head Teacher:</b></td>  <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.principal || ""}</td> </tr>
     </table>
 </div>
 
-<div style="width: 40%;">
+<div style="width: 40%; margin-top:0;">
     <div class="section-title">
      GRADE INTERPRETATION
     </div>
@@ -1140,7 +1160,7 @@ setTimeout(() => window.print(), 500);
       s.class.className.toLowerCase().includes(search.toLowerCase()) ||
       s.admissionNumber?.toLowerCase().includes(search.toLowerCase()),
   );
-
+  const isMobile = window.innerWidth < 768;
   return (
     <div>
       <h2 style={{ marginTop: 0, marginBottom: 20 }}>Results</h2>
@@ -1149,9 +1169,10 @@ setTimeout(() => window.print(), 500);
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "260px 1fr",
+          gridTemplateColumns: isMobile ? "1fr" : "260px 1fr",
           gap: 20,
           alignItems: "start",
+          overflowX: "auto",
         }}
       >
         {/* Student picker */}
@@ -1159,10 +1180,11 @@ setTimeout(() => window.print(), 500);
           style={{
             background: "#fff",
             borderRadius: 10,
-            padding: 16,
+            padding: isMobile ? 12 : 16,
             boxShadow: "0 1px 4px rgba(0,0,0,.06)",
-            position: "sticky",
-            top: 24,
+            position: isMobile ? "static" : "sticky",
+            top: isMobile ? 0 : 24,
+            // width: isMobile ? "85vw" : 1024,
           }}
         >
           <label
@@ -1285,7 +1307,9 @@ setTimeout(() => window.print(), 500);
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                alignItems: "flex-start",
+
+                flexDirection: isMobile ? "column" : "row",
+                alignItems: isMobile ? "stretch" : "flex-start",
                 marginBottom: 18,
                 flexWrap: "wrap",
                 gap: 10,
@@ -1360,21 +1384,6 @@ setTimeout(() => window.print(), 500);
               report &&
               selectedTermId && (
                 <>
-                  {/* {report?.subjects?.length === 0 ? (
-                    <div
-                      style={{
-                        padding: "28px 0",
-                        textAlign: "center",
-                        color: "#9ca3af",
-                      }}
-                    >
-                      No scores entered yet for this term.
-                      {classSubjects.length > 0
-                        ? ' Click "+ Enter Score" to begin.'
-                        : ""}
-                    </div>
-                  )  */}
-
                   <>
                     {/* Attendance Section */}
 
@@ -1463,263 +1472,269 @@ setTimeout(() => window.print(), 500);
                         </FormField>
                       </div>
                     </div>
-
-                    <table
+                    <div
                       style={{
+                        overflowX: "auto",
                         width: "100%",
-                        borderCollapse: "separate",
-                        borderSpacing: 0,
-                        fontSize: 14,
                       }}
                     >
-                      <thead>
-                        <tr style={{ background: "#f9fafb" }}>
-                          {[
-                            "Subject",
-                            "Att",
-                            "Ass",
-                            "CA1",
-                            "CA2",
-                            "Exam",
-                            "Total",
-                          ].map((h) => (
-                            <th
-                              key={h}
-                              style={{
-                                padding: "10px 12px",
-                                textAlign: "left",
-                                fontSize: 12,
-                                fontWeight: 700,
-                                color: "#6b7280",
-                                textTransform: "uppercase",
-                                letterSpacing: ".04em",
-                                borderBottom: "1px solid #e5e7eb",
-                              }}
-                            >
-                              {h}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
+                      <table
+                        style={{
+                          width: isMobile ? "85%vw" : "100%",
+                          borderCollapse: "separate",
+                          borderSpacing: 0,
+                          fontSize: 14,
+                        }}
+                      >
+                        <thead>
+                          <tr style={{ background: "#f9fafb" }}>
+                            {[
+                              "Subject",
+                              "Att",
+                              "Ass",
+                              "CA1",
+                              "CA2",
+                              "Exam",
+                              "Total",
+                            ].map((h) => (
+                              <th
+                                key={h}
+                                style={{
+                                  padding: "10px 12px",
+                                  textAlign: "left",
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color: "#6b7280",
+                                  textTransform: "uppercase",
+                                  letterSpacing: ".04em",
+                                  borderBottom: "1px solid #e5e7eb",
+                                }}
+                              >
+                                {h}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
 
-                      <tbody>
-                        {sheet.map((row, i) => (
-                          <tr key={row.id} style={{ margin: " 5px 0" }}>
-                            <td>{row.subject}</td>
+                        <tbody>
+                          {sheet.map((row, i) => (
+                            <tr key={row.id} style={{ margin: " 5px 0" }}>
+                              <td>{row.subject}</td>
 
-                            <td>
-                              <input
-                                type="number"
-                                min={0}
-                                max={5}
-                                value={row.attendanceScore}
-                                onChange={(e) =>
-                                  updateSheet(
-                                    i,
-                                    "attendanceScore",
-                                    e.target.value,
-                                  )
-                                }
-                                style={cellInput}
-                              />
-                            </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={5}
+                                  value={row.attendanceScore}
+                                  onChange={(e) =>
+                                    updateSheet(
+                                      i,
+                                      "attendanceScore",
+                                      e.target.value,
+                                    )
+                                  }
+                                  style={cellInput}
+                                />
+                              </td>
 
-                            <td>
-                              <input
-                                type="number"
-                                min={0}
-                                max={5}
-                                value={row.assignmentScore}
-                                onChange={(e) =>
-                                  updateSheet(
-                                    i,
-                                    "assignmentScore",
-                                    e.target.value,
-                                  )
-                                }
-                                style={cellInput}
-                              />
-                            </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={5}
+                                  value={row.assignmentScore}
+                                  onChange={(e) =>
+                                    updateSheet(
+                                      i,
+                                      "assignmentScore",
+                                      e.target.value,
+                                    )
+                                  }
+                                  style={cellInput}
+                                />
+                              </td>
 
-                            <td>
-                              <input
-                                type="number"
-                                min={0}
-                                max={15}
-                                value={row.ca1Score}
-                                onChange={(e) =>
-                                  updateSheet(i, "ca1Score", e.target.value)
-                                }
-                                style={cellInput}
-                              />
-                            </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={15}
+                                  value={row.ca1Score}
+                                  onChange={(e) =>
+                                    updateSheet(i, "ca1Score", e.target.value)
+                                  }
+                                  style={cellInput}
+                                />
+                              </td>
 
-                            <td>
-                              <input
-                                type="number"
-                                min={0}
-                                max={15}
-                                value={row.ca2Score}
-                                onChange={(e) =>
-                                  updateSheet(i, "ca2Score", e.target.value)
-                                }
-                                style={cellInput}
-                              />
-                            </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={15}
+                                  value={row.ca2Score}
+                                  onChange={(e) =>
+                                    updateSheet(i, "ca2Score", e.target.value)
+                                  }
+                                  style={cellInput}
+                                />
+                              </td>
 
-                            <td>
-                              <input
-                                type="number"
-                                min={0}
-                                max={60}
-                                value={row.examScore}
-                                onChange={(e) =>
-                                  updateSheet(i, "examScore", e.target.value)
-                                }
-                                style={cellInput}
-                              />
-                            </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={60}
+                                  value={row.examScore}
+                                  onChange={(e) =>
+                                    updateSheet(i, "examScore", e.target.value)
+                                  }
+                                  style={cellInput}
+                                />
+                              </td>
 
-                            <td>
-                              <strong>{row.totalScore}</strong>
-                            </td>
+                              <td>
+                                <strong>{row.totalScore}</strong>
+                              </td>
 
-                            {/* <td>
+                              {/* <td>
                               <Badge
                                 label={row.grade}
                                 color={gradeColor(row.grade)}
                               />
                             </td> */}
 
-                            {/* <td>{row.subjectPosition}</td>
+                              {/* <td>{row.subjectPosition}</td>
 
                             <td>{row.remark}</td> */}
-                          </tr>
-                          // <tr
-                          //   key={row.subjectId}
-                          //   style={{
-                          //     borderBottom: "1px solid #f3f4f6",
-                          //     transition: "background 0.15s",
-                          //   }}
-                          //   onMouseEnter={(e) =>
-                          //     (e.currentTarget.style.background = "#fafafa")
-                          //   }
-                          //   onMouseLeave={(e) =>
-                          //     (e.currentTarget.style.background = "transparent")
-                          //   }
-                          // >
-                          //   {/* Subject */}
-                          //   <td
-                          //     style={{ padding: "10px 12px", fontWeight: 500 }}
-                          //   >
-                          //     {row.subject}
-                          //   </td>
+                            </tr>
+                            // <tr
+                            //   key={row.subjectId}
+                            //   style={{
+                            //     borderBottom: "1px solid #f3f4f6",
+                            //     transition: "background 0.15s",
+                            //   }}
+                            //   onMouseEnter={(e) =>
+                            //     (e.currentTarget.style.background = "#fafafa")
+                            //   }
+                            //   onMouseLeave={(e) =>
+                            //     (e.currentTarget.style.background = "transparent")
+                            //   }
+                            // >
+                            //   {/* Subject */}
+                            //   <td
+                            //     style={{ padding: "10px 12px", fontWeight: 500 }}
+                            //   >
+                            //     {row.subject}
+                            //   </td>
 
-                          //   {/* Test */}
-                          //   <td style={{ padding: "8px 12px" }}>
-                          //     <input
-                          //       type="number"
-                          //       value={row.testScore}
-                          //       onChange={(e) =>
-                          //         updateSheet(i, "testScore", e.target.value)
-                          //       }
-                          //       onFocus={() => setFocused(`test-${i}`)}
-                          //       onBlur={() => setFocused(null)}
-                          //       style={{
-                          //         ...cellInput,
-                          //         borderColor:
-                          //           focused === `test-${i}`
-                          //             ? "#3b82f6"
-                          //             : "#e5e7eb",
-                          //         boxShadow:
-                          //           focused === `test-${i}`
-                          //             ? "0 0 0 2px rgba(59,130,246,0.15)"
-                          //             : "none",
+                            //   {/* Test */}
+                            //   <td style={{ padding: "8px 12px" }}>
+                            //     <input
+                            //       type="number"
+                            //       value={row.testScore}
+                            //       onChange={(e) =>
+                            //         updateSheet(i, "testScore", e.target.value)
+                            //       }
+                            //       onFocus={() => setFocused(`test-${i}`)}
+                            //       onBlur={() => setFocused(null)}
+                            //       style={{
+                            //         ...cellInput,
+                            //         borderColor:
+                            //           focused === `test-${i}`
+                            //             ? "#3b82f6"
+                            //             : "#e5e7eb",
+                            //         boxShadow:
+                            //           focused === `test-${i}`
+                            //             ? "0 0 0 2px rgba(59,130,246,0.15)"
+                            //             : "none",
 
-                          //         borderColor: row.testError
-                          //           ? "#ef4444"
-                          //           : "#e5e7eb",
-                          //         background: row.testError
-                          //           ? "#fef2f2"
-                          //           : "#fff",
-                          //       }}
-                          //     />
-                          //   </td>
+                            //         borderColor: row.testError
+                            //           ? "#ef4444"
+                            //           : "#e5e7eb",
+                            //         background: row.testError
+                            //           ? "#fef2f2"
+                            //           : "#fff",
+                            //       }}
+                            //     />
+                            //   </td>
 
-                          //   {/* Exam */}
-                          //   <td style={{ padding: "8px 12px" }}>
-                          //     <input
-                          //       type="number"
-                          //       value={row.examScore}
-                          //       onChange={(e) =>
-                          //         updateSheet(i, "examScore", e.target.value)
-                          //       }
-                          //       onFocus={() => setFocused(`exam-${i}`)}
-                          //       onBlur={() => setFocused(null)}
-                          //       style={{
-                          //         ...cellInput,
-                          //         borderColor:
-                          //           focused === `exam-${i}`
-                          //             ? "#3b82f6"
-                          //             : "#e5e7eb",
-                          //         boxShadow:
-                          //           focused === `exam-${i}`
-                          //             ? "0 0 0 2px rgba(59,130,246,0.15)"
-                          //             : "none",
-                          //         borderColor: row.examError
-                          //           ? "#ef4444"
-                          //           : "#e5e7eb",
-                          //         background: row.examError
-                          //           ? "#fef2f2"
-                          //           : "#fff",
-                          //       }}
-                          //     />
-                          //   </td>
+                            //   {/* Exam */}
+                            //   <td style={{ padding: "8px 12px" }}>
+                            //     <input
+                            //       type="number"
+                            //       value={row.examScore}
+                            //       onChange={(e) =>
+                            //         updateSheet(i, "examScore", e.target.value)
+                            //       }
+                            //       onFocus={() => setFocused(`exam-${i}`)}
+                            //       onBlur={() => setFocused(null)}
+                            //       style={{
+                            //         ...cellInput,
+                            //         borderColor:
+                            //           focused === `exam-${i}`
+                            //             ? "#3b82f6"
+                            //             : "#e5e7eb",
+                            //         boxShadow:
+                            //           focused === `exam-${i}`
+                            //             ? "0 0 0 2px rgba(59,130,246,0.15)"
+                            //             : "none",
+                            //         borderColor: row.examError
+                            //           ? "#ef4444"
+                            //           : "#e5e7eb",
+                            //         background: row.examError
+                            //           ? "#fef2f2"
+                            //           : "#fff",
+                            //       }}
+                            //     />
+                            //   </td>
 
-                          //   {/* Total */}
-                          //   <td
-                          //     style={{
-                          //       padding: "8px 12px",
-                          //       fontWeight: 600,
-                          //       color: "#111827",
-                          //     }}
-                          //   >
-                          //     {row.totalScore}
-                          //   </td>
+                            //   {/* Total */}
+                            //   <td
+                            //     style={{
+                            //       padding: "8px 12px",
+                            //       fontWeight: 600,
+                            //       color: "#111827",
+                            //     }}
+                            //   >
+                            //     {row.totalScore}
+                            //   </td>
 
-                          //   {/* Grade */}
-                          //   <td style={{ padding: "8px 12px" }}>
-                          //     <Badge
-                          //       label={row.grade}
-                          //       color={gradeColor(row.grade)}
-                          //     />
-                          //   </td>
+                            //   {/* Grade */}
+                            //   <td style={{ padding: "8px 12px" }}>
+                            //     <Badge
+                            //       label={row.grade}
+                            //       color={gradeColor(row.grade)}
+                            //     />
+                            //   </td>
 
-                          //   {/* Position */}
-                          //   <td
-                          //     style={{
-                          //       padding: "8px 12px",
-                          //       fontWeight: 500,
-                          //       color: "#374151",
-                          //     }}
-                          //   >
-                          //     {row.subjectPosition || "-"}
-                          //   </td>
+                            //   {/* Position */}
+                            //   <td
+                            //     style={{
+                            //       padding: "8px 12px",
+                            //       fontWeight: 500,
+                            //       color: "#374151",
+                            //     }}
+                            //   >
+                            //     {row.subjectPosition || "-"}
+                            //   </td>
 
-                          //   {/* Remark */}
-                          //   <td
-                          //     style={{
-                          //       padding: "8px 12px",
-                          //       fontSize: 12,
-                          //       color: "#6b7280",
-                          //     }}
-                          //   >
-                          //     {row.remark}
-                          //   </td>
-                          // </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            //   {/* Remark */}
+                            //   <td
+                            //     style={{
+                            //       padding: "8px 12px",
+                            //       fontSize: 12,
+                            //       color: "#6b7280",
+                            //     }}
+                            //   >
+                            //     {row.remark}
+                            //   </td>
+                            // </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
 
                     <div
                       style={{
@@ -1736,7 +1751,7 @@ setTimeout(() => window.print(), 500);
                         style={{
                           display: "grid",
                           gridTemplateColumns:
-                            "repeat(auto-fit,minmax(250px,1fr))",
+                            "repeat(auto-fit,minmax(180px,1fr))",
                           gap: 16,
                         }}
                       >
@@ -1775,7 +1790,7 @@ setTimeout(() => window.print(), 500);
                         style={{
                           display: "grid",
                           gridTemplateColumns:
-                            "repeat(auto-fit,minmax(250px,1fr))",
+                            "repeat(auto-fit,minmax(180px,1fr))",
                           gap: 16,
                         }}
                       >
@@ -1814,7 +1829,7 @@ setTimeout(() => window.print(), 500);
                         style={{
                           display: "grid",
                           gridTemplateColumns:
-                            "repeat(auto-fit,minmax(250px,1fr))",
+                            "repeat(auto-fit,minmax(180px,1fr))",
                           gap: 16,
                         }}
                       >
@@ -1853,7 +1868,7 @@ setTimeout(() => window.print(), 500);
                         style={{
                           display: "grid",
                           gridTemplateColumns:
-                            "repeat(auto-fit,minmax(250px,1fr))",
+                            "repeat(auto-fit,minmax(180px,1fr))",
                           gap: 16,
                         }}
                       >
@@ -1882,7 +1897,7 @@ setTimeout(() => window.print(), 500);
                         background: "#fff",
                         border: "1px solid #e5e7eb",
                         borderRadius: 12,
-                        padding: 20,
+                        padding: isMobile ? 14 : 20,
                         marginTop: 20,
                       }}
                     >
@@ -1896,7 +1911,7 @@ setTimeout(() => window.print(), 500);
                       >
                         <FormField label="Teacher Comment">
                           <textarea
-                            rows={2}
+                            rows={isMobile ? 3 : 2}
                             value={comments.teacher}
                             onChange={(e) =>
                               setComments({
@@ -1909,7 +1924,7 @@ setTimeout(() => window.print(), 500);
                         </FormField>
                         <FormField label="Sport Mistress Comment">
                           <textarea
-                            rows={2}
+                            rows={isMobile ? 3 : 2}
                             value={comments.sportMistress}
                             onChange={(e) =>
                               setComments({
@@ -1923,7 +1938,7 @@ setTimeout(() => window.print(), 500);
 
                         <FormField label="Principal Comment">
                           <textarea
-                            rows={2}
+                            rows={isMobile ? 3 : 2}
                             value={comments.principal}
                             onChange={(e) =>
                               setComments({
@@ -1940,7 +1955,7 @@ setTimeout(() => window.print(), 500);
                     <div
                       style={{
                         display: "flex",
-                        justifyContent: "flex-end",
+                        justifyContent: isMobile ? "stretch" : "flex-end",
                         marginTop: 24,
                       }}
                     >

@@ -786,138 +786,154 @@ export default function Students() {
         {loading ? (
           <Spinner />
         ) : (
-          <table
-            style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}
+          <div
+            style={{
+              overflowX: "auto",
+              width: "100%",
+            }}
           >
-            <thead>
-              <tr style={{ background: "#f9fafb" }}>
-                {[
-                  "Adm. No.",
-                  "Name",
-                  "Class",
-                  "Phone",
-                  "Paid",
-                  "Balance",
-                  "Actions",
-                ].map((h) => (
-                  <th
-                    key={h}
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: 14,
+              }}
+            >
+              <thead>
+                <tr style={{ background: "#f9fafb" }}>
+                  {[
+                    "Adm. No.",
+                    "Name",
+                    "Class",
+                    "Phone",
+                    "Paid",
+                    "Balance",
+                    "Actions",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: "10px 14px",
+                        textAlign: "left",
+                        color: "#374151",
+                        fontWeight: 600,
+                        fontSize: 13,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((s) => (
+                  <tr
+                    key={s.id}
+                    onClick={() => navigate(`/students/${s.id}`)}
                     style={{
-                      padding: "10px 14px",
-                      textAlign: "left",
-                      color: "#374151",
-                      fontWeight: 600,
-                      fontSize: 13,
-                      whiteSpace: "nowrap",
+                      borderTop: "1px solid #f3f4f6",
+                      cursor: "pointer",
                     }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = "#f9fafb")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "")
+                    }
                   >
-                    {h}
-                  </th>
+                    <td
+                      style={{
+                        padding: "10px 14px",
+                        fontFamily: "monospace",
+                        fontSize: 12,
+                        color: "#6b7280",
+                      }}
+                    >
+                      {s.admissionNumber}
+                    </td>
+                    <td style={{ padding: "10px 14px", fontWeight: 500 }}>
+                      {s.name}
+                    </td>
+                    <td style={{ padding: "10px 14px", color: "#6b7280" }}>
+                      {s.class.className}
+                    </td>
+                    <td
+                      style={{
+                        padding: "10px 14px",
+                        color: "#6b7280",
+                        fontSize: 13,
+                      }}
+                    >
+                      {s.parentPhone}
+                    </td>
+                    <td
+                      style={{
+                        padding: "10px 14px",
+                        fontWeight: 600,
+                        color: "#10b981",
+                      }}
+                    >
+                      {fmt(s.totalPaid)}
+                    </td>
+                    <td style={{ padding: "10px 14px" }}>
+                      <Badge
+                        label={fmt(s.balance)}
+                        color={
+                          s.balance <= 0
+                            ? "green"
+                            : s.balance < s.totalFee
+                              ? "yellow"
+                              : "red"
+                        }
+                      />
+                    </td>
+                    <td style={{ padding: "10px 14px" }}>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <ActionButton
+                          size="sm"
+                          variant="secondary"
+                          onClick={(e) => openEdit(e, s)}
+                        >
+                          Edit
+                        </ActionButton>
+                        <ActionButton
+                          size="sm"
+                          variant="danger"
+                          onClick={(e) => del(e, s.id)}
+                        >
+                          Delete
+                        </ActionButton>
+                        <ActionButton
+                          size="sm"
+                          variant="primary"
+                          onClick={(e) => handlePaymentHistory(e, s)}
+                        >
+                          Get Payment History
+                        </ActionButton>
+                      </div>
+                    </td>
+                  </tr>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((s) => (
-                <tr
-                  key={s.id}
-                  onClick={() => navigate(`/students/${s.id}`)}
-                  style={{ borderTop: "1px solid #f3f4f6", cursor: "pointer" }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = "#f9fafb")
-                  }
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-                >
-                  <td
-                    style={{
-                      padding: "10px 14px",
-                      fontFamily: "monospace",
-                      fontSize: 12,
-                      color: "#6b7280",
-                    }}
-                  >
-                    {s.admissionNumber}
-                  </td>
-                  <td style={{ padding: "10px 14px", fontWeight: 500 }}>
-                    {s.name}
-                  </td>
-                  <td style={{ padding: "10px 14px", color: "#6b7280" }}>
-                    {s.class.className}
-                  </td>
-                  <td
-                    style={{
-                      padding: "10px 14px",
-                      color: "#6b7280",
-                      fontSize: 13,
-                    }}
-                  >
-                    {s.parentPhone}
-                  </td>
-                  <td
-                    style={{
-                      padding: "10px 14px",
-                      fontWeight: 600,
-                      color: "#10b981",
-                    }}
-                  >
-                    {fmt(s.totalPaid)}
-                  </td>
-                  <td style={{ padding: "10px 14px" }}>
-                    <Badge
-                      label={fmt(s.balance)}
-                      color={
-                        s.balance <= 0
-                          ? "green"
-                          : s.balance < s.totalFee
-                            ? "yellow"
-                            : "red"
-                      }
-                    />
-                  </td>
-                  <td style={{ padding: "10px 14px" }}>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <ActionButton
-                        size="sm"
-                        variant="secondary"
-                        onClick={(e) => openEdit(e, s)}
-                      >
-                        Edit
-                      </ActionButton>
-                      <ActionButton
-                        size="sm"
-                        variant="danger"
-                        onClick={(e) => del(e, s.id)}
-                      >
-                        Delete
-                      </ActionButton>
-                      <ActionButton
-                        size="sm"
-                        variant="primary"
-                        onClick={(e) => handlePaymentHistory(e, s)}
-                      >
-                        Get Payment History
-                      </ActionButton>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={7}
-                    style={{
-                      padding: "40px 14px",
-                      textAlign: "center",
-                      color: "#9ca3af",
-                    }}
-                  >
-                    {search
-                      ? "No students match your search"
-                      : "No students registered yet"}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                {filtered.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      style={{
+                        padding: "40px 14px",
+                        textAlign: "center",
+                        color: "#9ca3af",
+                      }}
+                    >
+                      {search
+                        ? "No students match your search"
+                        : "No students registered yet"}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

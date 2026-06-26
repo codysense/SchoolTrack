@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { Spinner, ErrorMessage } from "../components/ui";
-import { getOrdinal } from "./Results";
+import {
+  getOrdinal,
+  getOrdinalHijri,
+  formatNameWithComma,
+  formatHijrahDate,
+} from "./Results";
 // import PayButton from "../components/PayButton";
 
 function gradeHex(g) {
@@ -84,104 +89,15 @@ Thank you.
 
   console.log("Active term", activeTerm);
 
-  // const printResult = () => {
-  //   if (!results || !activeTerm || !profile) return;
-  //   const w = window.open("", "_blank");
-
-  //   const rows = results.subjects
-  //     .map(
-  //       (r) => `
-  //     <tr>
-  //       <td>${r.subject}</td>
-  //       <td style="text-align:center;font-weight:600">${r.testScore}</td>
-  //       <td style="text-align:center;font-weight:600">${r.examScore}</td>
-  //       <td style="text-align:center;font-weight:600">${r.TotalScore}</td>
-  //       <td style="text-align:center;color:${gradeHex(r.grade)};font-weight:700">${r.grade}</td>
-  //        <td style="text-align:center;font-weight:600">${getOrdinal(r.subjectPosition)}</td>
-  //       <td style="color:#6b7280">${r.remark}</td>
-  //     </tr>
-  //   `,
-  //     )
-  //     .join("");
-
-  //   const logoHtml = school?.logoUrl
-  //     ? `<img src="${school.logoUrl}" style="height:64px;object-fit:contain;margin-bottom:6px"/>`
-  //     : '<div style="font-size:48px;line-height:1">🏫</div>';
-
-  //   w.document.write(`<!DOCTYPE html><html><head>
-  //     <title>Report Card — ${profile.name}</title>
-  //     <style>
-  //       * { box-sizing: border-box; margin: 0; padding: 0; }
-  //       body { font-family:Roboto, sans-serif; max-width: 720px; margin: 40px auto; color: #1a1f36; padding: 20px; }
-  //       .header { text-align: center; border-bottom: 3px double #1a1f36; padding-bottom: 18px; margin-bottom: 24px; }
-  //       .header h1 { font-size: 22px; margin: 6px 0 3px; }
-  //       .header .sub { font-size: 13px; color: #6b7280; margin: 2px 0; }
-  //       .header .badge { font-size: 15px; font-weight: bold; margin-top: 12px; text-transform: uppercase; letter-spacing: .06em; }
-  //       .info { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
-  //       .info div { border: 1px solid #e5e7eb; padding: 8px 12px; border-radius: 6px; }
-  //       .info span { font-size: 10px; color: #9ca3af; display: block; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
-  //       .paid-stamp { display: inline-block; border: 2px solid #10b981; color: #10b981; padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; letter-spacing: .06em; margin-top: 8px; }
-  //       table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  //       th { background: #f9fafb; padding: 9px 12px; text-align: left; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid #e5e7eb; }
-  //       td { padding: 9px 12px; border-bottom: 1px solid #f3f4f6; }
-  //       .summary { margin-top: 20px; display: flex; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
-  //       .summary div { flex: 1; padding: 14px; text-align: center; border-right: 1px solid #e5e7eb; }
-  //       .summary div:last-child { border-right: none; }
-  //       .summary .label { font-size: 11px; color: #9ca3af; text-transform: uppercase; margin-bottom: 4px; }
-  //       .summary .val { font-size: 22px; font-weight: 700; }
-  //       .sigs { margin-top: 52px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px; }
-  //       .sig { border-top: 1px solid #1a1f36; padding-top: 6px; font-size: 12px; color: #6b7280; }
-  //       @media print { body { margin: 10px; } }
-  //     </style>
-  //   </head><body>
-  //     <div class="header">
-  //       ${logoHtml}
-  //       <h1>${school?.name || "School Name"}</h1>
-  //       ${school?.address ? `<p class="sub">${school.address}</p>` : ""}
-  //       ${school?.phone ? `<p class="sub">${school.phone}</p>` : ""}
-  //       ${school?.motto ? `<p class="sub" style="font-style:italic;margin-top:4px">"${school.motto}"</p>` : ""}
-  //       <div class="badge">Student Academic Report</div>
-  //     </div>
-
-  //     <div class="info">
-  //       <div><span>Student Name</span>${profile.name}</div>
-  //       <div><span>Admission No.</span>${profile.admissionNumber}</div>
-  //       <div><span>Class</span>${profile.className}</div>
-  //       <div><span>Term</span>${activeTerm.termLabel}</div>
-  //       <div><span>Subjects</span>${results.subjects.length}</div>
-  //       <div><span>Date Issued</span>${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</div>
-  //     </div>
-  //     <div style="margin-bottom:16px"><span class="paid-stamp">✓ FEES FULLY PAID</span></div>
-
-  //     <table>
-  //       <thead><tr><th>Subject</th><th style="text-align:center">Test Score</th><th style="text-align:center">Exam Score</th><th style="text-align:center">Total Score</th><th style="text-align:center">Grade</th><th style="text-align:center">Subject Position</th><th>Remark</th></tr></thead>
-  //       <tbody>${rows}</tbody>
-  //     </table>
-
-  //     <div class="summary">
-  //       <div><div class="label">Total Score</div><div class="val">${results.summary.totalScore}</div></div>
-  //       <div><div class="label">Average</div><div class="val">${results.summary.average}%</div></div>
-  //       <div><div class="label">Final Grade</div><div class="val" style="color:${gradeHex(results.summary.finalGrade)}">${results.summary.finalGrade}</div></div>
-  //       <div><div class="label">Student Position</div><div class="val">${getOrdinal(results.summary.position)}</div></div>
-  //     </div>
-
-  //     <div class="sigs">
-  //       <div class="sig">Class Teacher</div>
-  //       <div class="sig">Head of Department</div>
-  //       <div class="sig">Principal / Head Teacher</div>
-  //     </div>
-  //     <script>window.onload = () => window.print()</script>
-  //   </body></html>`);
-  //   w.document.close();
-  // };
-
   const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace("/api", "");
   const getMediaUrl = (value) =>
     value?.startsWith("http") ? value : `${API_BASE}${value}`;
 
   const printResult = () => {
     if (!results || !activeTerm || !profile) return;
+
     const selectedTerm = activeTerm.termId;
+    console.log("Select Term", activeTerm);
 
     const watermarkHtml = school?.logoUrl
       ? `
@@ -206,6 +122,15 @@ Thank you.
 
     const absent = (attendance.schoolOpened || 0) - (attendance.present || 0);
 
+    const classSection = [
+      "preschool",
+      "preparatory class 1",
+      "preparatory class 2",
+      "preparatory class 3",
+    ].includes(results.student.class.className.toLowerCase())
+      ? "Nursery Section"
+      : "Primary Section";
+
     const renderAssessmentGrid = (items) =>
       items
         .map(
@@ -228,7 +153,7 @@ Thank you.
 
 <td>${r.assignmentScore ?? 0}</td>
 
-<td>${r.ca1Score ?? 0}</td>
+${classSection.toLowerCase() === "primary section" ? <td>${r.ca1Score ?? 0}</td> : ""}
 
 <td>${r.ca2Score ?? 0}</td>
 
@@ -279,512 +204,1062 @@ ${r.remark}
 
     const w = window.open("", "_blank");
 
+    //     w.document.write(`
+    // <!DOCTYPE html>
+    // <html>
+    // <head>
+    // <title>${student.name} Report Card</title>
+
+    // <style>
+
+    // *{
+    // margin:0;
+    // padding:0;
+    // box-sizing:border-box;
+    // }
+
+    // .report-card{
+    //   position:relative;
+    //   width:100%;
+    // }
+
+    // .watermark{
+    //   position:fixed;
+    //   top:50%;
+    //   left:50%;
+    //   transform:translate(-50%, -50%);
+    //   z-index:0;
+    //   pointer-events:none;
+    // }
+
+    // .watermark img{
+    //   width:800px;
+    //   height:800px;
+    //   object-fit:contain;
+    //   opacity:0.06;
+    // }
+
+    // @media print{
+
+    //   .watermark{
+    //     position:fixed;
+    //     top:50%;
+    //     left:50%;
+    //     transform:translate(-50%, -50%);
+    //   }
+
+    //   .watermark img{
+    //     opacity:0.05;
+    //     -webkit-print-color-adjust:exact;
+    //     print-color-adjust:exact;
+    //   }
+
+    // }
+
+    // body{
+    // font-family:Arial,sans-serif;
+    // padding:20px;
+    // color:#111827;
+    // }
+
+    // :root{
+    // --primary:#10b981;
+    // --light:#d1fae5;
+    // }
+
+    // .report-card{
+    // width:100%;
+    // }
+
+    // .header{
+    // display:grid;
+    // grid-template-columns:120px 1fr 120px;
+    // gap:15px;
+    // align-items:center;
+    // margin-bottom:15px;
+    // }
+
+    // .logo{
+    // width:150px;
+    // height:150px;
+    // object-fit:contain;
+    // }
+
+    // .passport{
+    // width:100px;
+    // height:120px;
+    // object-fit:cover;
+    // border:1px solid #cbd5e1;
+    // }
+
+    // .school-info{
+    // text-align:center;
+    // }
+
+    // .school-name{
+    // font-size:26px;
+    // font-weight:700;
+    // color:#0c4a6e;
+    // }
+
+    // .school-address{
+    // font-size:12px;
+    // margin-top:4px;
+    // }
+
+    // .report-title{
+    // font-size:28px;
+    // font-weight:700;
+    // color:#0c4a6e;
+    // margin-top:10px;
+    // }
+
+    // .student-name{
+    // font-size:32px;
+    // font-weight:700;
+    // font-style:italic;
+    // text-align:center;
+    // margin:15px 0;
+    // color:#0c4a6e;
+    // }
+
+    // .student-grid{
+    // display:grid;
+    // grid-template-columns:repeat(4,1fr);
+    // gap:8px;
+    // margin-bottom:15px;
+    // font-size:13px;
+    // }
+
+    // .section-title{
+    // background:var(--primary);
+    // color:white;
+    // padding:8px;
+    // font-weight:700;
+    // margin-top:12px;
+    // margin-bottom:5px;
+    // }
+
+    // table{
+    // width:100%;
+    // border-collapse:collapse;
+    // margin-bottom:12px;
+    // }
+
+    // th{
+    // background:var(--light);
+    // color:#0c4a6e;
+    // font-size:12px;
+    // padding:6px;
+    // border:1px solid #93c5fd;
+    // }
+
+    // td{
+    // padding:6px;
+    // border:1px solid #cbd5e1;
+    // font-size:12px;
+    // }
+
+    // .assessment-grid{
+    // display:grid;
+    // grid-template-columns:repeat(2,1fr);
+    // gap:8px;
+    // margin-bottom:12px;
+    // }
+
+    // .assessment-item{
+    // display:flex;
+    // justify-content:space-between;
+    // padding:8px;
+    // border:1px solid #cbd5e1;
+    // background:#f8fafc;
+    // }
+
+    // .summary{
+    // display:grid;
+    // grid-template-columns:repeat(6,1fr);
+    // gap:8px;
+    // margin-top:10px;
+    // }
+
+    // .summary-card{
+    // background:#d1fae5;
+    // padding:10px;
+    // text-align:center;
+    // border-radius:6px;
+    // }
+
+    // .summary-card .label{
+    // font-size:11px;
+    // color:#0c4a6e;
+    // }
+
+    // .summary-card .value{
+    // font-size:18px;
+    // font-weight:700;
+    // margin-top:4px;
+    // }
+
+    // .comment-box{
+    // border:1px solid #cbd5e1;
+    // padding:10px;
+    // margin-bottom:10px;
+    // min-height:60px;
+    // }
+
+    // .grade{
+    // font-weight:bold;
+    // }
+
+    // .signature-section{
+    // margin-top:30px;
+    // display:flex;
+    // justify-content:space-between;
+    // align-items:flex-end;
+    // }
+
+    // .signature-image{
+    // height:60px;
+    // object-fit:contain;
+    // }
+
+    // .signature-line{
+    // width:220px;
+    // border-top:1px solid #111827;
+    // padding-top:5px;
+    // text-align:center;
+    // font-size:12px;
+    // }
+
+    // @media print{
+
+    // body{
+    // padding:10px;
+    // }
+
+    // .section-title{
+    // -webkit-print-color-adjust:exact;
+    // print-color-adjust:exact;
+    // }
+
+    // th{
+    // -webkit-print-color-adjust:exact;
+    // print-color-adjust:exact;
+    // }
+
+    // }
+
+    // </style>
+
+    // </head>
+
+    // <body>
+
+    // <div class="report-card">
+    // ${watermarkHtml}
+    // <div class="header">
+
+    // <div>
+    // ${logoHtml}
+    // </div>
+
+    // <div class="school-info">
+    // <div class="school-name">
+    // ${school?.name || ""}
+    // </div>
+
+    // <div class="school-address">
+    // ${school?.address || ""}
+    // </div>
+
+    // <div class="report-title">
+    // REPORT SHEET
+    // </div>
+    // </div>
+
+    // <div>
+    // ${passportHtml}
+    // </div>
+
+    // </div>
+
+    // <div class="student-name">
+    // ${student.name}
+    // </div>
+
+    // <div class="student-grid">
+
+    // <div>
+    // <b>Admission No:</b><br/>
+    // ${student.admissionNumber || ""}
+    // </div>
+
+    // <div>
+    // <b>Class:</b><br/>
+    // ${student.class.className || ""}
+    // </div>
+
+    // <div>
+    // <b>Session:</b><br/>
+    // ${activeTerm?.sessionName || ""}
+    // </div>
+
+    // <div>
+    // <b>Term:</b><br/>
+    // ${activeTerm?.termName || ""}
+    // </div>
+
+    // <div>
+    // <b>Gender:</b><br/>
+    // ${student.gender || ""}
+    // </div>
+
+    // <div>
+    // <b>Date Of Birth:</b><br/>
+    // ${student.dateOfBirth ? new Date(student.dateOfBirth).toLocaleDateString() : ""}
+    // </div>
+
+    // <div>
+    // <b>Class Size:</b><br/>
+    // ${results.summary.classSize}
+    // </div>
+
+    // <div>
+    // <b>Date:</b><br/>
+    // ${new Date().toLocaleDateString()}
+    // </div>
+
+    // </div>
+
+    // <div class="section-title">
+    // 1. ATTENDANCE
+    // </div>
+
+    // <table>
+
+    // <tr>
+    // <td>School Opened</td>
+    // <td>${attendance.schoolOpened || 0}</td>
+    // </tr>
+
+    // <tr>
+    // <td>Present</td>
+    // <td>${attendance.present || 0}</td>
+    // </tr>
+
+    // <tr>
+    // <td>Absent</td>
+    // <td>${absent}</td>
+    // </tr>
+
+    // </table>
+
+    // <div class="section-title">
+    // 2. BEHAVIOUR
+    // </div>
+
+    // <div class="assessment-grid">
+    // ${renderAssessmentGrid(behaviour)}
+    // </div>
+
+    // <div class="section-title">
+    // 3. PSYCHOMOTOR
+    // </div>
+
+    // <div class="assessment-grid">
+    // ${renderAssessmentGrid(psychomotor)}
+    // </div>
+
+    // <div class="section-title">
+    // 4. PERFORMANCE IN SUBJECTS
+    // </div>
+
+    // <table>
+
+    // <thead>
+
+    // <tr>
+
+    // <th>Subject</th>
+
+    // <th>Att</th>
+
+    // <th>Assign</th>
+
+    // <th>CA1</th>
+
+    // <th>CA2</th>
+
+    // <th>Exam</th>
+
+    // <th>Total</th>
+
+    // ${activeTerm?.termName === "Second Term" || activeTerm?.termName === "Third Term" ? "<th>1st</th>" : ""}
+
+    // ${activeTerm?.termName === "Third Term" ? "<th>2nd</th>" : ""}
+
+    // <th>Grade</th>
+
+    // <th>Pos</th>
+
+    // <th>Remark</th>
+
+    // </tr>
+
+    // </thead>
+
+    // <tbody>
+
+    // ${subjectRows}
+
+    // </tbody>
+
+    // </table>
+
+    // <div class="summary">
+
+    // <div class="summary-card">
+    // <div class="label">Total</div>
+    // <div class="value">${results.summary.totalScore}</div>
+    // </div>
+
+    // <div class="summary-card">
+    // <div class="label">Average</div>
+    // <div class="value">${results.summary.average}%</div>
+    // </div>
+
+    // <div class="summary-card">
+    // <div class="label">Grade</div>
+    // <div class="value">${results.summary.finalGrade}</div>
+    // </div>
+
+    // <div class="summary-card">
+    // <div class="label">Position</div>
+    // <div class="value">${getOrdinal(results.summary.position)}</div>
+    // </div>
+
+    // <div class="summary-card">
+    // <div class="label">Subjects</div>
+    // <div class="value">${results.summary.subjectsOffered}</div>
+    // </div>
+
+    // <div class="summary-card">
+    // <div class="label">Class Size</div>
+    // <div class="value">${results.summary.classSize}</div>
+    // </div>
+
+    // </div>
+
+    // <div class="section-title">
+    // 5. SPORTS
+    // </div>
+
+    // <div class="assessment-grid">
+    // ${renderAssessmentGrid(sports)}
+    // </div>
+
+    // <div class="section-title">
+    // 6. CLUBS
+    // </div>
+
+    // <div class="assessment-grid">
+    // ${renderAssessmentGrid(clubs)}
+    // </div>
+
+    // <div class="section-title">
+    // TEACHER COMMENT
+    // </div>
+
+    // <div class="comment-box">
+    // ${comments.teacher || ""}
+    // </div>
+
+    // <div class="section-title">
+    // PRINCIPAL COMMENT
+    // </div>
+
+    // <div class="comment-box">
+    // ${comments.principal || ""}
+    // </div>
+
+    // <div class="signature-section">
+
+    // <div class="signature-line">
+    // Class Teacher
+    // </div>
+
+    // <div>
+    // ${principalSignature}
+    // <div class="signature-line">
+    // Principal
+    // </div>
+    // </div>
+
+    // </div>
+
+    // </div>
+
+    // <script>
+    // window.onload = () => {
+    // setTimeout(() => window.print(), 500);
+    // };
+    // </script>
+
+    // </body>
+    // </html>
+    // `);
     w.document.write(`
-<!DOCTYPE html>
-<html>
-<head>
-<title>${student.name} Report Card</title>
-
-<style>
-
-*{
-margin:0;
-padding:0;
-box-sizing:border-box;
-}
-
-.report-card{
-  position:relative;
-  width:100%;
-}
-
-.watermark{
-  position:fixed;
-  top:50%;
-  left:50%;
-  transform:translate(-50%, -50%);
-  z-index:0;
-  pointer-events:none;
-}
-
-.watermark img{
-  width:800px;
-  height:800px;
-  object-fit:contain;
-  opacity:0.06;
-}
-
-@media print{
-
+  <!DOCTYPE html>
+  <html>
+  <head>
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&display=swap" rel="stylesheet">
+  <title>${formatNameWithComma(student.name)} Report Card</title>
+  
+  <style>
+  
+  *{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+  }
+  
+  .report-card{
+    position:relative;
+    width:100%;
+  }
+  
   .watermark{
     position:fixed;
     top:50%;
     left:50%;
     transform:translate(-50%, -50%);
+    z-index:0;
+    pointer-events:none;
   }
-
+  
   .watermark img{
-    opacity:0.05;
-    -webkit-print-color-adjust:exact;
-    print-color-adjust:exact;
+    width:800px;
+    height:800px;
+    object-fit:contain;
+    opacity:0.06;
   }
-
-}
-
-
-body{
-font-family:Arial,sans-serif;
-padding:20px;
-color:#111827;
-}
-
-:root{
---primary:#10b981;
---light:#d1fae5;
-}
-
-.report-card{
-width:100%;
-}
-
-.header{
-display:grid;
-grid-template-columns:120px 1fr 120px;
-gap:15px;
-align-items:center;
-margin-bottom:15px;
-}
-
-.logo{
-width:150px;
-height:150px;
-object-fit:contain;
-}
-
-.passport{
-width:100px;
-height:120px;
-object-fit:cover;
-border:1px solid #cbd5e1;
-}
-
-.school-info{
-text-align:center;
-}
-
-.school-name{
-font-size:26px;
-font-weight:700;
-color:#0c4a6e;
-}
-
-.school-address{
-font-size:12px;
-margin-top:4px;
-}
-
-.report-title{
-font-size:28px;
-font-weight:700;
-color:#0c4a6e;
-margin-top:10px;
-}
-
-.student-name{
-font-size:32px;
-font-weight:700;
-font-style:italic;
-text-align:center;
-margin:15px 0;
-color:#0c4a6e;
-}
-
-.student-grid{
-display:grid;
-grid-template-columns:repeat(4,1fr);
-gap:8px;
-margin-bottom:15px;
-font-size:13px;
-}
-
-.section-title{
-background:var(--primary);
-color:white;
-padding:8px;
-font-weight:700;
-margin-top:12px;
-margin-bottom:5px;
-}
-
-table{
-width:100%;
-border-collapse:collapse;
-margin-bottom:12px;
-}
-
-th{
-background:var(--light);
-color:#0c4a6e;
-font-size:12px;
-padding:6px;
-border:1px solid #93c5fd;
-}
-
-td{
-padding:6px;
-border:1px solid #cbd5e1;
-font-size:12px;
-}
-
-.assessment-grid{
-display:grid;
-grid-template-columns:repeat(2,1fr);
-gap:8px;
-margin-bottom:12px;
-}
-
-.assessment-item{
-display:flex;
-justify-content:space-between;
-padding:8px;
-border:1px solid #cbd5e1;
-background:#f8fafc;
-}
-
-.summary{
-display:grid;
-grid-template-columns:repeat(6,1fr);
-gap:8px;
-margin-top:10px;
-}
-
-.summary-card{
-background:#d1fae5;
-padding:10px;
-text-align:center;
-border-radius:6px;
-}
-
-.summary-card .label{
-font-size:11px;
-color:#0c4a6e;
-}
-
-.summary-card .value{
-font-size:18px;
-font-weight:700;
-margin-top:4px;
-}
-
-.comment-box{
-border:1px solid #cbd5e1;
-padding:10px;
-margin-bottom:10px;
-min-height:60px;
-}
-
-.grade{
-font-weight:bold;
-}
-
-.signature-section{
-margin-top:30px;
-display:flex;
-justify-content:space-between;
-align-items:flex-end;
-}
-
-.signature-image{
-height:60px;
-object-fit:contain;
-}
-
-.signature-line{
-width:220px;
-border-top:1px solid #111827;
-padding-top:5px;
-text-align:center;
-font-size:12px;
-}
-
-@media print{
-
-body{
-padding:10px;
-}
-
-.section-title{
--webkit-print-color-adjust:exact;
-print-color-adjust:exact;
-}
-
-th{
--webkit-print-color-adjust:exact;
-print-color-adjust:exact;
-}
-
-}
-
-</style>
-
-</head>
-
-<body>
-
-<div class="report-card">
-${watermarkHtml}
-<div class="header">
-
-<div>
-${logoHtml}
-</div>
-
-<div class="school-info">
-<div class="school-name">
-${school?.name || ""}
-</div>
-
-<div class="school-address">
-${school?.address || ""}
-</div>
-
-<div class="report-title">
-REPORT SHEET
-</div>
-</div>
-
-<div>
-${passportHtml}
-</div>
-
-</div>
-
-<div class="student-name">
-${student.name}
-</div>
-
-<div class="student-grid">
-
-<div>
-<b>Admission No:</b><br/>
-${student.admissionNumber || ""}
-</div>
-
-<div>
-<b>Class:</b><br/>
-${student.class.className || ""}
-</div>
-
-<div>
-<b>Session:</b><br/>
-${activeTerm?.sessionName || ""}
-</div>
-
-<div>
-<b>Term:</b><br/>
-${activeTerm?.termName || ""}
-</div>
-
-<div>
-<b>Gender:</b><br/>
-${student.gender || ""}
-</div>
-
-<div>
-<b>Date Of Birth:</b><br/>
-${student.dateOfBirth ? new Date(student.dateOfBirth).toLocaleDateString() : ""}
-</div>
-
-<div>
-<b>Class Size:</b><br/>
-${results.summary.classSize}
-</div>
-
-<div>
-<b>Date:</b><br/>
-${new Date().toLocaleDateString()}
-</div>
-
-</div>
-
-<div class="section-title">
-1. ATTENDANCE
-</div>
-
-<table>
-
-<tr>
-<td>School Opened</td>
-<td>${attendance.schoolOpened || 0}</td>
-</tr>
-
-<tr>
-<td>Present</td>
-<td>${attendance.present || 0}</td>
-</tr>
-
-<tr>
-<td>Absent</td>
-<td>${absent}</td>
-</tr>
-
-</table>
-
-<div class="section-title">
-2. BEHAVIOUR
-</div>
-
-<div class="assessment-grid">
-${renderAssessmentGrid(behaviour)}
-</div>
-
-<div class="section-title">
-3. PSYCHOMOTOR
-</div>
-
-<div class="assessment-grid">
-${renderAssessmentGrid(psychomotor)}
-</div>
-
-<div class="section-title">
-4. PERFORMANCE IN SUBJECTS
-</div>
-
-<table>
-
-<thead>
-
-<tr>
-
-<th>Subject</th>
-
-<th>Att</th>
-
-<th>Assign</th>
-
-<th>CA1</th>
-
-<th>CA2</th>
-
-<th>Exam</th>
-
-<th>Total</th>
-
-${activeTerm?.termName === "Second Term" || activeTerm?.termName === "Third Term" ? "<th>1st</th>" : ""}
-
-${activeTerm?.termName === "Third Term" ? "<th>2nd</th>" : ""}
-
-<th>Grade</th>
-
-<th>Pos</th>
-
-<th>Remark</th>
-
-</tr>
-
-</thead>
-
-<tbody>
-
-${subjectRows}
-
-</tbody>
-
-</table>
-
-<div class="summary">
-
-<div class="summary-card">
-<div class="label">Total</div>
-<div class="value">${results.summary.totalScore}</div>
-</div>
-
-<div class="summary-card">
-<div class="label">Average</div>
-<div class="value">${results.summary.average}%</div>
-</div>
-
-<div class="summary-card">
-<div class="label">Grade</div>
-<div class="value">${results.summary.finalGrade}</div>
-</div>
-
-<div class="summary-card">
-<div class="label">Position</div>
-<div class="value">${getOrdinal(results.summary.position)}</div>
-</div>
-
-<div class="summary-card">
-<div class="label">Subjects</div>
-<div class="value">${results.summary.subjectsOffered}</div>
-</div>
-
-<div class="summary-card">
-<div class="label">Class Size</div>
-<div class="value">${results.summary.classSize}</div>
-</div>
-
-</div>
-
-<div class="section-title">
-5. SPORTS
-</div>
-
-<div class="assessment-grid">
-${renderAssessmentGrid(sports)}
-</div>
-
-<div class="section-title">
-6. CLUBS
-</div>
-
-<div class="assessment-grid">
-${renderAssessmentGrid(clubs)}
-</div>
-
-<div class="section-title">
-TEACHER COMMENT
-</div>
-
-<div class="comment-box">
-${comments.teacher || ""}
-</div>
-
-<div class="section-title">
-PRINCIPAL COMMENT
-</div>
-
-<div class="comment-box">
-${comments.principal || ""}
-</div>
-
-<div class="signature-section">
-
-<div class="signature-line">
-Class Teacher
-</div>
-
-<div>
-${principalSignature}
-<div class="signature-line">
-Principal
-</div>
-</div>
-
-</div>
-
-</div>
-
-<script>
-window.onload = () => {
-setTimeout(() => window.print(), 500);
-};
-</script>
-
-</body>
-</html>
-`);
-
+  
+  @media print{
+  
+    .watermark{
+      position:fixed;
+      top:50%;
+      left:50%;
+      transform:translate(-50%, -50%);
+    }
+  
+    .watermark img{
+      opacity:0.05;
+      -webkit-print-color-adjust:exact;
+      print-color-adjust:exact;
+    }
+  
+  }
+  
+  body{
+  font-family:Arial,sans-serif;
+  padding:20px;
+  color:#111827;
+  }
+  
+  :root {
+    --primary: #10b981;
+    --light: #d1fae5;
+    
+    /* Harmonized dark gray shades */
+    --dark-bg: #131414ee;     /* Dark background */
+    --dark-card: #1c2e28;   /* Dark card/border */
+    --dark-text: #c7d1cf;   /* Light green-gray text for dark mode */
+  }
+  
+  .report-card{
+  width:100%;
+  }
+  
+  .header{
+  display:grid;
+  grid-template-columns:80px 1fr 80px;
+  gap:5px;
+  align-items:center;
+  
+  }
+  
+  
+  
+  .logo{
+  width:150px;
+  height:150px;
+  object-fit:contain;
+  }
+  
+  .passport{
+  width:100px;
+  height:120px;
+  object-fit:cover;
+  border:1px solid #cbd5e1;
+  }
+  
+  .school-info{
+  text-align:center;
+  color:var(--dark-card);
+  }
+  
+  
+  
+  .school-name{
+  text-transform:capitalise;
+  font-variant:small-caps;
+  display:block;
+  font-size:28px;
+  font-weight:600;
+  font-family:"Times New Roman", Times, serif;
+  
+  }
+  
+  .school-address{
+  font-size:12px;
+  margin-top:4px;
+  }
+  
+  .report-title{
+  font-size:20px;
+  font-weight:600;
+  
+  margin-top:10px;
+  }
+  
+  .student-name{
+  font-size:25px;
+  font-weight:700;
+  font-style:italic;
+  text-align:center;
+  font-family: "Lucida Calligraphy", "Apple Chancery", "URW Chancery L", cursive;
+  margin:10px 0;
+  color:var(--dark-card);
+  }
+  
+  .principal-title{
+    margin-top:10px;
+  }
+  
+  .comment-grade{
+  display:flex;
+  justify-content: space-between;
+  
+  }
+  
+  .student-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:10px;
+  margin-bottom:5px;
+  font-size:10px;
+  }
+  
+  .section-title{
+  background:var(--dark-text);
+  color:var(--dark-bg);
+  padding:3px;
+  font-weight:600;
+  font-size: 10px;
+  margin-top:12px;
+  margin-bottom:5px;
+  }
+  
+  table{
+  width:100%;
+  border-collapse:collapse;
+  margin-bottom:12px;
+  }
+  
+  th{
+  background:var(--dark-text);
+  color:var(--dark-bg);
+  font-size:8px;
+  padding:4px;
+  border:1px solid #93c5fd;
+  }
+  
+  td{
+  padding:3px;
+  border:1px solid #cbd5e1;
+  font-size:8px;
+  }
+  
+  .next-term-promotion{
+  display:flex;
+  justify-content:space-between;
+  margin-top:5px;
+  font-size:10px;
+  font-style:italic;
+  }
+  
+  .assessment-grid{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:5px;
+  margin-bottom:12px;
+  }
+  
+  .assessment-grid-club{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:5px;
+  margin-bottom:12px;
+  }
+  
+  .assessment-item{
+  display:flex;
+  justify-content:space-between;
+  padding:2px;
+  font-size:10px;
+  border:1px solid #cbd5e1;
+  background:#f8fafc;
+  }
+  
+  .summary{
+  display:grid;
+  grid-template-columns:repeat(6,1fr);
+  gap:8px;
+  margin-top:10px;
+  margin-bottom:5px;
+  }
+  
+  .summary-card{
+  background:var(--dark-bg);
+  padding:6px;
+  text-align:center;
+  border-radius:6px;
+  }
+  
+  .summary-card .label{
+  font-size:10px;
+  font-weight:500;
+  color:var(--dark-text);
+  }
+  
+  .summary-card .value{
+  font-size:10px;
+  font-weight:600;
+  margin-top:4px;
+  color:var(--dark-text);
+  }
+  
+  .comment-box{
+  border:1px solid #cbd5e1;
+  padding:10px;
+  margin-bottom:10px;
+  min-height:60px;
+  }
+  
+  .grade{
+  font-weight:bold;
+  }
+  
+  .signature-section{
+  margin-top:30px;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  }
+  
+  .signature-image{
+  height:60px;
+  object-fit:contain;
+  }
+  
+  .signature-line{
+  width:220px;
+  border-top:1px solid #111827;
+  padding-top:5px;
+  text-align:center;
+  font-size:12px;
+  }
+  
+  @media print{
+  
+  body{
+  padding:10px;
+  }
+  
+  .section-title, .summary-card, .value, .label {
+  -webkit-print-color-adjust:exact;
+  print-color-adjust:exact;
+  }
+  
+  
+  
+  th{
+  -webkit-print-color-adjust:exact;
+  print-color-adjust:exact;
+  }
+  
+  }
+  
+  </style>
+  
+  </head>
+  
+  <body>
+  
+  <div class="report-card">
+  ${watermarkHtml}
+  <div class="header">
+  
+  <div>
+  ${logoHtml}
+  </div>
+  
+  <div class="school-info">
+  <div class="school-name">
+  ${school?.name || ""}
+  </div>
+  
+  <div class="school-address">
+  ${school?.address || ""}
+  </div>
+  
+  <div class="report-title">
+  ${activeTerm?.termName.toUpperCase() || ""} ${activeTerm?.sessionName || ""} REPORT SHEET
+  </div>
+  <div class="report-title">
+  (${classSection.toUpperCase()})
+  </div>
+  
+  </div>
+  
+  <div>
+  ${passportHtml}
+  </div>
+  
+  </div>
+  
+  <div class="student-name">
+  ${formatNameWithComma(student.name)}
+  </div>
+  
+  <div class="student-grid">
+  
+  <div>
+  <b>Admission No:</b>
+  ${student.admissionNumber || ""}
+  </div>
+  
+  <div>
+  <b>Class: </b>
+  ${student.class.className || ""}
+  </div>
+  
+  <div>
+  <b>School Opened: </b> 
+  ${attendance.schoolOpened || 0}
+  </div>
+  
+  <div>
+  <b>Present: </b>
+  ${attendance.present || 0}
+  </div>
+  <div>
+  <b>Punctual: </b>
+  ${attendance.punctual || 0}
+  </div>
+  
+  <div>
+  <b>Gender:</b>
+  ${student.gender || ""}
+  </div>
+  
+  <div>
+  <b>Date Of Birth:</b>
+  ${student.dateOfBirth ? new Date(student.dateOfBirth).toLocaleDateString() : ""}
+  </div>
+  
+  
+  
+  <div>
+  <b>Term Closed:</b>
+  ${formatHijrahDate(results.term.termCloseDate?.split("T")[0]) || ""}
+  </div>
+  
+  
+  
+  </div>
+  
+  
+  
+  <div class="section-title">
+  1. BEHAVIOUR & PSYCHOMOTOR
+  </div>
+  
+  <div class="assessment-grid">
+  ${renderAssessmentGrid(behaviour)}
+  </div>
+  <div class="assessment-grid">
+  ${renderAssessmentGrid(psychomotor)}
+  </div>
+  
+  <div class="section-title">
+  2. PERFORMANCE IN SUBJECTS
+  </div>
+  
+  <table>
+  
+  <thead>
+  
+  <tr>
+  
+  <th>Subject</th>
+  
+  <th>Att</th>
+  
+  <th>Ass</th>
+  
+  ${classSection.toLowerCase() === "primary section" ? "<th>CA1</th>" : ""}
+
+  ${classSection.toLowerCase() === "primary section" ? "<th>CA2</th>" : "<th>CA</th>"}
+  <th>Exam</th>
+  
+  <th>Total</th>
+  
+  ${selectedTerm?.name === "Second Term" || selectedTerm?.name === "Third Term" ? "<th>1st</th>" : ""}
+  
+  ${selectedTerm?.name === "Third Term" ? "<th>2nd</th>" : ""}
+  
+  <th>Grade</th>
+  
+  <th>Pos</th>
+  
+  <th>Remark</th>
+  
+  </tr>
+  
+  </thead>
+  
+  <tbody>
+  
+  ${subjectRows}
+  
+  </tbody>
+  
+  </table>
+  
+  <div class="summary">
+  
+  <div class="summary-card">
+  <div class="label">Total</div>
+  <div class="value">${results.summary.totalScore}</div>
+  </div>
+  
+  <div class="summary-card">
+  <div class="label">Average</div>
+  <div class="value">${results.summary.average}%</div>
+  </div>
+  
+  <div class="summary-card">
+  <div class="label">Grade</div>
+  <div class="value">${results.summary.finalGrade}</div>
+  </div>
+  
+  <div class="summary-card">
+  <div class="label">Position</div>
+  <div class="value">${getOrdinal(results.summary.position)}</div>
+  </div>
+  
+  <div class="summary-card">
+  <div class="label">Subjects</div>
+  <div class="value">${results.summary.subjectsOffered}</div>
+  </div>
+  
+  <div class="summary-card">
+  <div class="label">No in Class</div>
+  <div class="value">${results.summary.classSize}</div>
+  </div>
+  
+  </div>
+  
+  <div class="section-title">
+  3. SPORTS
+  </div>
+  
+  <div class="assessment-grid">
+  ${renderAssessmentGrid(sports)}
+  </div>
+  
+  <div class="section-title" style="bottom-margin:5px">
+  4. CLUBS - OFFICE HELD
+  </div>
+  
+  <div class="assessment-grid-club">
+  ${renderAssessmentGrid(clubs)}
+  </div>
+  
+  
+  
+  
+  <div class="comment-grade" style="display: flex; gap: 20px;">
+  <div style="width: 60%; margin-top:0;">
+      <div class="section-title">
+      5 COMMENTS & REMARKS
+      </div>
+      <table style="width: 100%;">
+         <tr > <td><b>Sports Mistress:</b></td> <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.sportMistress || ""}</td> </tr>
+         <tr> <td><b>Class Teacher:</b></td>  <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.teacher || ""}</td> </tr>
+         <tr> <td><b>Head Teacher:</b></td>  <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.principal || ""}</td> </tr>
+      </table>
+  </div>
+  
+  <div style="width: 40%; margin-top:0;">
+      <div class="section-title">
+       GRADE INTERPRETATION
+      </div>
+      <table style="width: 100%;">
+         <tr> <td><b> (80 - 100)</b> </td> <td><b>A</b></td> <td>Excellent</td></tr>
+         <tr> <td><b> (60 - 79)</b> </td>  <td><b>B</b></td> <td>Very Good</td></tr>
+         <tr> <td><b> (40 - 59)</b> </td>  <td><b>C</b></td> <td>Good</td></tr>
+         <tr> <td><b> (0 - 39)</b> </td>   <td><b>P</b></td> <td>Poor</td></tr>
+      </table>
+  </div>
+  </div>
+  
+  
+  
+  <div style="margin-top:15px;">
+  ${principalSignature}
+  </div>
+  <div class="signature-line">
+  Director/Head
+  </div>
+  
+  <div class="next-term-promotion">
+  <div>
+  <b>Next Term Begins:</b>
+  ${formatHijrahDate(results.term.nextTermDateBegins?.split("T")[0]) || ""}
+  </div>
+  
+  
+  </div>
+  
+  
+  </div>
+  
+  </div>
+  
+  </div>
+  
+  <script>
+  window.onload = () => {
+  setTimeout(() => window.print(), 500);
+  };
+  </script>
+  
+  </body>
+  </html>
+  `);
     w.document.close();
   };
 

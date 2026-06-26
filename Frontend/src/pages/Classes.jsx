@@ -11,10 +11,51 @@ export default function Classes() {
   const [error, setError] = useState("");
 
   // Subjects state (only used when editing an existing class)
+  const [editingSubject, setEditingSubject] = useState(null);
+  const [editingName, setEditingName] = useState("");
+  const [savingSubject, setSavingSubject] = useState(false);
   const [subjects, setSubjects] = useState([]);
   const [newSubject, setNewSubject] = useState("");
   const [subjectError, setSubjectError] = useState("");
   const [addingSubject, setAddingSubject] = useState(false);
+
+  //Edit suject function
+  const updateSubject = async () => {
+    const name = editingName.trim();
+
+    if (!name) return setSubjectError("Subject name is required");
+
+    if (
+      subjects.some(
+        (s) =>
+          s.id !== editingSubject &&
+          s.name.toLowerCase() === name.toLowerCase(),
+      )
+    ) {
+      return setSubjectError("Subject already exists");
+    }
+
+    setSavingSubject(true);
+
+    try {
+      const updated = await api(`/results/subjects/${editingSubject}`, {
+        method: "PUT",
+        body: { name },
+      });
+
+      setSubjects((prev) =>
+        prev.map((s) => (s.id === updated.id ? updated : s)),
+      );
+
+      setEditingSubject(null);
+      setEditingName("");
+      setSubjectError("");
+    } catch (e) {
+      setSubjectError(e.message);
+    } finally {
+      setSavingSubject(false);
+    }
+  };
 
   const loadClasses = () => api("/classes").then(setClasses);
   useEffect(() => {
@@ -398,7 +439,151 @@ export default function Classes() {
               </p>
 
               {/* Existing subjects list */}
-              <div style={{ marginBottom: 14, minHeight: 32 }}>
+
+              <div
+                style={{
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 8,
+                  overflow: "hidden",
+                  marginBottom: 14,
+                }}
+              >
+                {subjects.length === 0 ? (
+                  <div
+                    style={{
+                      padding: 18,
+                      textAlign: "center",
+                      color: "#9ca3af",
+                    }}
+                  >
+                    No subjects added yet.
+                  </div>
+                ) : (
+                  subjects.map((s, index) => (
+                    <div
+                      key={s.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "10px 14px",
+                        borderBottom:
+                          index === subjects.length - 1
+                            ? "none"
+                            : "1px solid #f3f4f6",
+                      }}
+                    >
+                      {editingSubject === s.id ? (
+                        <input
+                          value={editingName}
+                          autoFocus
+                          onChange={(e) => setEditingName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") updateSubject();
+                            if (e.key === "Escape") {
+                              setEditingSubject(null);
+                              setEditingName("");
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: "6px 10px",
+                            border: "1px solid #4f8ef7",
+                            borderRadius: 6,
+                          }}
+                        />
+                      ) : (
+                        <span
+                          style={{
+                            fontWeight: 500,
+                            color: "#374151",
+                          }}
+                        >
+                          {s.name}
+                        </span>
+                      )}
+
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          marginLeft: 12,
+                        }}
+                      >
+                        {editingSubject === s.id ? (
+                          <>
+                            <button
+                              onClick={updateSubject}
+                              disabled={savingSubject}
+                              style={{
+                                background: "#22c55e",
+                                color: "#fff",
+                                border: "none",
+                                borderRadius: 6,
+                                padding: "5px 12px",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Save
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setEditingSubject(null);
+                                setEditingName("");
+                              }}
+                              style={{
+                                background: "#6b7280",
+                                color: "#fff",
+                                border: "none",
+                                borderRadius: 6,
+                                padding: "5px 12px",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => {
+                                setEditingSubject(s.id);
+                                setEditingName(s.name);
+                              }}
+                              style={{
+                                background: "#2563eb",
+                                color: "#fff",
+                                border: "none",
+                                borderRadius: 6,
+                                padding: "5px 12px",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              onClick={() => removeSubject(s.id)}
+                              style={{
+                                background: "#dc2626",
+                                color: "#fff",
+                                border: "none",
+                                borderRadius: 6,
+                                padding: "5px 12px",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              {/* <div style={{ marginBottom: 14, minHeight: 32 }}>
                 {subjects.length === 0 ? (
                   <p style={{ fontSize: 13, color: "#9ca3af", margin: 0 }}>
                     No subjects added yet.
@@ -446,7 +631,7 @@ export default function Classes() {
                     ))}
                   </div>
                 )}
-              </div>
+              </div> */}
 
               {/* Add subject input */}
               {subjectError && (

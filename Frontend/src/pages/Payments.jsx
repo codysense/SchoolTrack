@@ -446,122 +446,133 @@ export default function Payments() {
         {loading ? (
           <Spinner />
         ) : (
-          <table
-            style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}
+          <div
+            style={{
+              overflowX: "auto",
+              width: "100%",
+            }}
           >
-            <thead>
-              <tr style={{ background: "#f9fafb" }}>
-                {[
-                  "Date",
-                  "Student",
-                  "Class",
-                  "Amount",
-                  "Term",
-                  "Session",
-                  "Method",
-                  "Note",
-                  "Action",
-                ].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      padding: "10px 14px",
-                      textAlign: "left",
-                      color: "#374151",
-                      fontWeight: 600,
-                      fontSize: 13,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {payments.map((p) => (
-                <tr key={p.id} style={{ borderTop: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "10px 14px", fontWeight: 500 }}>
-                    {p.date ? new Date(p.date).toLocaleDateString() : "—"}
-                  </td>
-                  <td style={{ padding: "10px 14px", fontWeight: 500 }}>
-                    {p.student.name}
-                  </td>
-                  <td style={{ padding: "10px 14px", color: "#6b7280" }}>
-                    {p.student.class.className}
-                  </td>
-                  <td
-                    style={{
-                      padding: "10px 14px",
-                      fontWeight: 600,
-                      color: "#10b981",
-                    }}
-                  >
-                    {fmt(p.amountPaid)}
-                  </td>
-                  <td style={{ padding: "10px 14px", color: "#374151" }}>
-                    {p.term?.name || "—"}
-                  </td>
-                  <td
-                    style={{
-                      padding: "10px 14px",
-                      color: "#6b7280",
-                      fontSize: 12,
-                    }}
-                  >
-                    {p.term?.session?.name || "—"}
-                  </td>
-                  <td style={{ padding: "10px 14px" }}>
-                    <Badge label={p.paymentMethod} color="blue" />
-                  </td>
-                  <td
-                    style={{
-                      padding: "10px 14px",
-                      color: "#6b7280",
-                      fontSize: 12,
-                    }}
-                  >
-                    {p.note || "—"}
-                  </td>
-                  <td
-                    style={{
-                      padding: "10px 14px",
-                      color: "#9ca3af",
-                      fontSize: 12,
-                    }}
-                  >
-                    <ActionButton
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: 14,
+              }}
+            >
+              <thead>
+                <tr style={{ background: "#f9fafb" }}>
+                  {[
+                    "Date",
+                    "Student",
+                    "Class",
+                    "Amount",
+                    "Term",
+                    "Session",
+                    "Method",
+                    "Note",
+                    "Action",
+                  ].map((h) => (
+                    <th
+                      key={h}
                       style={{
-                        color: "#3b82f6",
-                        background: "transparent",
-                        border: "none",
-                        cursor: "pointer",
-                      }}
-                      onClick={() => {
-                        printReceipt(p);
+                        padding: "10px 14px",
+                        textAlign: "left",
+                        color: "#374151",
+                        fontWeight: 600,
+                        fontSize: 13,
+                        whiteSpace: "nowrap",
                       }}
                     >
-                      🖨 Print
-                    </ActionButton>
-                  </td>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-              {payments.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={8}
-                    style={{
-                      padding: "40px 14px",
-                      textAlign: "center",
-                      color: "#9ca3af",
-                    }}
-                  >
-                    No payments recorded{filterTermId ? " for this term" : ""}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {payments.map((p) => (
+                  <tr key={p.id} style={{ borderTop: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "10px 14px", fontWeight: 500 }}>
+                      {p.date ? new Date(p.date).toLocaleDateString() : "—"}
+                    </td>
+                    <td style={{ padding: "10px 14px", fontWeight: 500 }}>
+                      {p.student.name}
+                    </td>
+                    <td style={{ padding: "10px 14px", color: "#6b7280" }}>
+                      {p.student.class.className}
+                    </td>
+                    <td
+                      style={{
+                        padding: "10px 14px",
+                        fontWeight: 600,
+                        color: "#10b981",
+                      }}
+                    >
+                      {fmt(p.amountPaid)}
+                    </td>
+                    <td style={{ padding: "10px 14px", color: "#374151" }}>
+                      {p.term?.name || "—"}
+                    </td>
+                    <td
+                      style={{
+                        padding: "10px 14px",
+                        color: "#6b7280",
+                        fontSize: 12,
+                      }}
+                    >
+                      {p.term?.session?.name || "—"}
+                    </td>
+                    <td style={{ padding: "10px 14px" }}>
+                      <Badge label={p.paymentMethod} color="blue" />
+                    </td>
+                    <td
+                      style={{
+                        padding: "10px 14px",
+                        color: "#6b7280",
+                        fontSize: 12,
+                      }}
+                    >
+                      {p.note || "—"}
+                    </td>
+                    <td
+                      style={{
+                        padding: "10px 14px",
+                        color: "#9ca3af",
+                        fontSize: 12,
+                      }}
+                    >
+                      <ActionButton
+                        style={{
+                          color: "#3b82f6",
+                          background: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                        }}
+                        onClick={() => {
+                          printReceipt(p);
+                        }}
+                      >
+                        🖨 Print
+                      </ActionButton>
+                    </td>
+                  </tr>
+                ))}
+                {payments.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      style={{
+                        padding: "40px 14px",
+                        textAlign: "center",
+                        color: "#9ca3af",
+                      }}
+                    >
+                      No payments recorded{filterTermId ? " for this term" : ""}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

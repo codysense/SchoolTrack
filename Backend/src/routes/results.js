@@ -205,9 +205,23 @@ router.get("/subjects", staffOnly, async (req, res) => {
   const subjects = await prisma.subject.findMany({
     where: classId ? { classId } : undefined,
     include: { class: true },
-    orderBy: { name: "asc" },
+    //orderBy: { name: "asc" },
   });
   res.json(subjects);
+});
+
+//PUT: update subject
+router.put("/subjects/:id", adminOnly, async (req, res) => {
+  const { name } = req.body;
+
+  const subject = await prisma.subject.update({
+    where: { id: req.params.id },
+    data: {
+      name: name.trim(),
+    },
+  });
+
+  res.json(subject);
 });
 
 router.post("/subjects", staffOnly, async (req, res) => {
@@ -331,6 +345,9 @@ router.get("/student-result/:studentId", async (req, res) => {
       where: {
         studentId,
         termId,
+        subject: {
+          classId: student.classId,
+        },
       },
       include: {
         subject: true,
