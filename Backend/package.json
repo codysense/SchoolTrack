@@ -4,7 +4,9 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "db:migrate": "prisma migrate dev",
-    "db:seed": "node prisma/seed.js"
+    "db:seed": "node prisma/seed.js",
+    "build": "prisma generate",
+    "start": "node src/index.js"
   },
   "dependencies": {
     "@prisma/client": "^5.10.0",
