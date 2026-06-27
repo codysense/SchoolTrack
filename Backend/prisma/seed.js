@@ -54,63 +54,72 @@ async function main() {
     });
   }
 
-  // School
-  // await prisma.school.upsert({
-  //   where: { id: "school-singleton" },
-  //   update: {},
-  //   create: {
-  //     id: "school-singleton",
-  //     name: "Sunrise Academy",
-  //     address: "12 School Lane, Ibadan, Oyo State",
-  //     phone: "+234 800 000 0001",
-  //     email: "info@sunriseacademy.ng",
-  //     motto: "Knowledge, Character, Excellence",
-  //   },
-  // });
+  //School;
+  await prisma.school.upsert({
+    where: { id: "markaz-taaliim" },
+    update: {},
+    create: {
+      id: "markaz-taaliim",
+      name: "The Learning Hub",
+      address:
+        "ADEKUNLE LAWAL STR, ILUPEJU 2, ZONE 2, ONWARD AREA, OSOGBO OSUN STATE",
+      phone: "+234 703 891 4429",
+      email: "markaztaaliim@gmail.com",
+      motto: "Learning for practice",
+    },
+  });
 
-  // // Admin
-  // await prisma.user.upsert({
-  //   where: { email: "admin@school.ng" },
-  //   update: {},
-  //   create: {
-  //     email: "admin@school.ng",
-  //     password: await bcrypt.hash("admin123", 10),
-  //     name: "School Admin",
-  //     role: "ADMIN",
-  //   },
-  // });
+  // Admin
+  await prisma.user.upsert({
+    where: { email: "admin@markaztaaliim.com" },
+    update: {},
+    create: {
+      email: "admin@markaztaaliim.com",
+      password: await bcrypt.hash("admin123", 10),
+      name: "School Admin",
+      role: "ADMIN",
+    },
+  });
 
-  //Classes;
-  // const [jss1, jss2, ss1] = await Promise.all([
-  //   prisma.class.upsert({
-  //     where: { className: "JSS 1" },
-  //     update: {},
-  //     create: { className: "JSS 1", feeAmount: 45000 },
-  //   }),
-  //   prisma.class.upsert({
-  //     where: { className: "JSS 2" },
-  //     update: {},
-  //     create: { className: "JSS 2", feeAmount: 45000 },
-  //   }),
-  //   prisma.class.upsert({
-  //     where: { className: "SS 1" },
-  //     update: {},
-  //     create: { className: "SS 1", feeAmount: 55000 },
-  //   }),
-  // ]);
+  // Classes;
+  const [PreSchool, PreparatoryClass1, PreparatoryClass2, PreparatoryClass3] =
+    await Promise.all([
+      prisma.class.upsert({
+        where: { className: "PreSchool" },
+        update: {},
+        create: { className: "PreSchool", feeAmount: 45000 },
+      }),
+      prisma.class.upsert({
+        where: { className: "Preparatory Class 1" },
+        update: {},
+        create: { className: "Preparatory Class 1", feeAmount: 45000 },
+      }),
+      prisma.class.upsert({
+        where: { className: "Preparatory Class 2" },
+        update: {},
+        create: { className: "Preparatory Class 2", feeAmount: 55000 },
+      }),
+      prisma.class.upsert({
+        where: { className: "Preparatory Class 3" },
+        update: {},
+        create: { className: "Preparatory Class 3", feeAmount: 55000 },
+      }),
+    ]);
 
-  // // Teacher
-  // const teacherUser = await prisma.user.upsert({
-  //   where: { email: "teacher@school.ng" },
-  //   update: {},
-  //   create: {
-  //     email: "teacher@school.ng",
-  //     password: await bcrypt.hash("teacher123", 10),
-  //     name: "Mrs Adunola Bello",
-  //     role: "TEACHER",
-  //     teacher: { create: { classId: jss1.id, subjectName: "Mathematics" } },
-  //   },
-  // });
+  // Teacher
+  const teacherUser = await prisma.user.upsert({
+    where: { email: "teacher@markaztaaliim.com" },
+    update: {},
+    create: {
+      email: "teacher@markaztaaliim.com",
+      password: await bcrypt.hash("teacher123", 10),
+      name: "Mrs Adunola Bello",
+      role: "TEACHER",
+      teacher: {
+        create: { classId: PreSchool.id, subjectName: "Mathematics" },
+      },
+    },
+  });
 
   // Subjects
   // for (const [cls, names] of [
@@ -318,9 +327,9 @@ async function main() {
   // }
 
   console.log("\n🎉 Done!");
-  console.log("   Admin:   admin@school.ng / admin123");
+  console.log("   Admin:   admin@school.g / admin123");
   console.log("   Teacher: teacher@school.ng / teacher123");
-  console.log("   Student: SCH/2024/0001 + Amaka");
+  // console.log("   Student: SCH/2024/0001 + Abdullah");
 }
 
 main()

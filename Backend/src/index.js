@@ -22,7 +22,20 @@ const PORT = process.env.PORT || 4000;
 
 // const express = require("express");
 
-app.use(cors({ origin: process.env.FRONTEND_URL || "http://localhost:5173" }));
+//app.use(cors({ origin: process.env.FRONTEND_URL || "http://localhost:5173" }));
+
+// import cors from "cors";
+
+app.use(
+  cors({
+    origin: [
+      "https://skooltrack.netlify.app",
+      "https://markaztaaliim.com",
+      "https://www.markaztaaliim.com",
+    ],
+    credentials: true,
+  }),
+);
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
