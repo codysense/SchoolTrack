@@ -38,18 +38,18 @@ app.use(
 );
 app.use(express.json());
 
-app.use("/api/auth", authRoutes);
-app.use("/api/students", studentRoutes);
-app.use("/api/classes", classRoutes);
-app.use("/api/payments", paymentRoutes);
-app.use("/api/results", resultRoutes);
-app.use("/api/notifications", notificationRoutes);
-app.use("/api/optional-fees", optionalFeeRoutes);
-app.use("/api/setup", setupRoutes);
-app.use("/api/portal", portalRoutes);
-app.use("/api/sessions", sessionRoutes);
-app.use("/api/audit", auditRoutes);
-app.use("/api/assessment-categories", assessmentCategoryRoutes);
+app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/students", studentRoutes);
+app.use("/api/v1/classes", classRoutes);
+app.use("/api/v1/payments", paymentRoutes);
+app.use("/api/v1/results", resultRoutes);
+app.use("/api/v1/notifications", notificationRoutes);
+app.use("/api/v1/optional-fees", optionalFeeRoutes);
+app.use("/api/v1/setup", setupRoutes);
+app.use("/api/v1/portal", portalRoutes);
+app.use("/api/v1/sessions", sessionRoutes);
+app.use("/api/v1/audit", auditRoutes);
+app.use("/api/v1/assessment-categories", assessmentCategoryRoutes);
 app.use("/uploads", express.static("uploads"));
 
 app.use((req, res) =>
