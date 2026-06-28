@@ -948,7 +948,7 @@ export default function Students() {
 
           <div
             style={{
-              paddingRight: 8,
+              formGridStyle,
             }}
           >
             <h4 style={{ margin: "24px 0 12px" }}>Passport Information</h4>
