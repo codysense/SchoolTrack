@@ -1022,17 +1022,11 @@ ${renderAssessmentGrid(psychomotor)}
 <div class="section-title">
 2. PERFORMANCE IN SUBJECTS
 </div>
-
 <table>
-
 <thead>
-
 <tr>
-
 <th>Subject</th>
-
 <th>Att</th>
-
 <th>Ass</th>
 
 ${classSection.toLowerCase() === "primary section" ? "<th>CA1</th>" : ""}

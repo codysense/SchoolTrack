@@ -8,13 +8,93 @@ const router = Router();
 const prisma = new PrismaClient();
 router.use(authenticate);
 
-async function generateAdmissionNumber() {
-  const year = new Date().getFullYear();
-  const count = await prisma.student.count();
-  return `SCH/${year}/${String(count + 1).padStart(4, "0")}`;
-}
+async function generateAdmissionNumber(classId) {
+  const PS_CLASSES = [
+    "PRESCHOOL",
+    "PREPARATORY CLASS 1",
+    "PREPARATORY CLASS 2",
+    "PREPARATORY CLASS 3",
+  ];
 
+  const studentClass = await prisma.class.findUnique({
+    where: { id: classId },
+    select: {
+      className: true,
+    },
+  });
+
+  if (!studentClass) {
+    throw new Error("Class not found");
+  }
+
+  const section = PS_CLASSES.includes(
+    studentClass.className.trim().toUpperCase(),
+  )
+    ? "PS"
+    : "PR";
+
+  const lastStudent = await prisma.student.findFirst({
+    where: {
+      admissionNumber: {
+        startsWith: `TLH/${section}/`,
+      },
+    },
+    orderBy: {
+      admissionNumber: "desc",
+    },
+    select: {
+      admissionNumber: true,
+    },
+  });
+
+  let nextNumber = 1;
+
+  if (lastStudent) {
+    const parts = lastStudent.admissionNumber.split("/");
+    nextNumber = parseInt(parts[2], 10) + 1;
+  }
+
+  return `TLH/${section}/${String(nextNumber).padStart(6, "0")}`;
+}
 // GET all students
+
+// async function generateAdmissionNumber(classId) {
+//   const PS_NAMES = [
+//     "Preschool",
+//     "Preparatory Class 1",
+//     "Preparatory Class 2",
+//     "Preparatory Class 3",
+//   ];
+
+//   const studentClass = await prisma.class.findUnique({
+//     where: { id: classId },
+//     select: { className: true },
+//   });
+
+//   if (!studentClass) throw new Error("Class not found");
+
+//   // console.log(studentClass.className);
+
+//   const isPSClass = PS_NAMES.map((n) => n.toLowerCase()).includes(
+//     studentClass.className.toLowerCase(),
+//   );
+
+//   // const countWhere = isPSClass
+//   //   ? { class: { className: { in: PS_NAMES } } }
+//   //   : { NOT: { class: { className: { in: PS_NAMES } } } };
+
+//   const countWhere = isPSClass
+//     ? { class: { is: { className: { in: PS_NAMES } } } }
+//     : { class: { is: { className: { notIn: PS_NAMES } } } };
+
+//   const sectionCount = await prisma.student.count({ where: countWhere });
+
+//   const section = isPSClass ? "PS" : "PR";
+
+//   // console.log("Section Count", sectionCount, "Section", section);
+//   return `TLH/${section}/${String(sectionCount + 1).padStart(6, "0")}`;
+// }
+
 router.get("/", staffOnly, async (req, res) => {
   const { classId, termId, includeInactive } = req.query;
 
@@ -200,7 +280,7 @@ router.post(
     } = req.body;
 
     if (!admissionNumber?.trim()) {
-      admissionNumber = await generateAdmissionNumber();
+      admissionNumber = await generateAdmissionNumber(classId);
     }
 
     try {
@@ -273,37 +353,8 @@ router.post(
   },
 );
 
-// router.post("/", adminOnly, async (req, res) => {
-//   let { name, parentPhone, classId, admissionNumber } = req.body;
-//   if (!admissionNumber?.trim())
-//     admissionNumber = await generateAdmissionNumber();
-
-//   try {
-//     const student = await prisma.student.create({
-//       data: {
-//         admissionNumber: admissionNumber.trim(),
-//         name,
-//         parentPhone,
-//         classId,
-//       },
-//       include: { class: true },
-//     });
-//     await log({
-//       req,
-//       action: "CREATE",
-//       entity: "Student",
-//       entityId: student.id,
-//       detail: `Registered student "${student.name}" (${student.admissionNumber}) in ${student.class.className}`,
-//     });
-//     res.status(201).json(student);
-//   } catch (e) {
-//     if (e.code === "P2002")
-//       return res.status(409).json({ error: "Admission number already exists" });
-//     throw e;
-//   }
-// });
-
 // PUT update student
+
 router.put(
   "/:id",
   adminOnly,
@@ -322,7 +373,7 @@ router.put(
     const passportPhoto = req.file
       ? `/uploads/students/${req.file.filename}`
       : existingStudent.passportPhoto;
-    const {
+    let {
       name,
       parentPhone,
       classId,
@@ -343,11 +394,14 @@ router.put(
     } = req.body;
     // console.log("Updating student with data:", req.file);
 
+    if (!admissionNumber?.trim()) {
+      admissionNumber = await generateAdmissionNumber(classId);
+    }
+
     const student = await prisma.student.update({
       where: { id: req.params.id },
       data: {
-        admissionNumber:
-          admissionNumber?.trim() || existingStudent.admissionNumber,
+        admissionNumber: admissionNumber.trim(),
         name: name?.trim(),
 
         // Parent Information
