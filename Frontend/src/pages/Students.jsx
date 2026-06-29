@@ -1039,7 +1039,7 @@ export default function Students() {
               </FormField>
 
               <FormField label="Entry Class">
-                <input
+                <select
                   value={form.entryClass}
                   onChange={(e) =>
                     setForm((p) => ({
@@ -1048,7 +1048,24 @@ export default function Students() {
                     }))
                   }
                   style={inputStyle}
-                />
+                >
+                  <option value="">Select class...</option>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.className}
+                    </option>
+                  ))}
+                </select>
+                {/* <input
+                  value={form.entryClass}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      entryClass: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                /> */}
               </FormField>
 
               <FormField label="Admission Date">

@@ -341,7 +341,7 @@ router.put(
       height,
       weight,
     } = req.body;
-    console.log("Updating student with data:", req.file);
+    // console.log("Updating student with data:", req.file);
 
     const student = await prisma.student.update({
       where: { id: req.params.id },

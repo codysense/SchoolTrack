@@ -18,7 +18,7 @@ const ADMIN_NAV = [
 
 const TEACHER_NAV = [
   { path: "/", label: "Dashboard", icon: "▦" },
-  { path: "/students", label: "Students", icon: "👥" },
+  // { path: "/students", label: "Students", icon: "👥" },
   { path: "/classes", label: "Classes", icon: "🏛" },
   { path: "/results", label: "Results", icon: "📋" },
 ];

@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import Modal from "../components/Modal";
+import { useAuth } from "../context/AuthContext";
 
 const emptyClass = { className: "", feeAmount: "" };
 
 export default function Classes() {
+  const { user, isAdmin, isTeacher } = useAuth();
   const [classes, setClasses] = useState([]);
   const [modal, setModal] = useState(null); // null | 'create' | class-obj
   const [form, setForm] = useState(emptyClass);
@@ -164,6 +166,9 @@ export default function Classes() {
   };
 
   const isEditing = modal && modal !== "create";
+  const visibleClasses = isAdmin
+    ? classes
+    : classes.filter((cls) => cls.id === user?.teacher?.classId);
 
   return (
     <div>
@@ -177,20 +182,22 @@ export default function Classes() {
         }}
       >
         <h2 style={{ margin: 0 }}>Classes</h2>
-        <button
-          onClick={openCreate}
-          style={{
-            background: "#4f8ef7",
-            color: "#fff",
-            border: "none",
-            padding: "8px 18px",
-            borderRadius: 8,
-            cursor: "pointer",
-            fontWeight: 600,
-          }}
-        >
-          + Add Class
-        </button>
+        {isAdmin && (
+          <button
+            onClick={openCreate}
+            style={{
+              background: "#4f8ef7",
+              color: "#fff",
+              border: "none",
+              padding: "8px 18px",
+              borderRadius: 8,
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
+          >
+            + Add Class
+          </button>
+        )}
       </div>
 
       {/* Class cards */}
@@ -201,7 +208,24 @@ export default function Classes() {
           gap: 16,
         }}
       >
-        {classes.map((c) => (
+        {visibleClasses.length === 0 && (
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              background: "#fff",
+              borderRadius: 12,
+              padding: 24,
+              textAlign: "center",
+              color: "#6b7280",
+            }}
+          >
+            {isTeacher
+              ? "No class is currently assigned to your account."
+              : "No classes available."}
+          </div>
+        )}
+
+        {visibleClasses.map((c) => (
           <div
             key={c.id}
             style={{

@@ -114,7 +114,7 @@ const cellInput = {
 
 export default function Results() {
   const { currentTerm, sessions } = useTerm();
-  const { user } = useAuth();
+  const { user, isAdmin, isTeacher } = useAuth();
   const [sheet, setSheet] = useState([]);
   const [students, setStudents] = useState([]);
   const [subjects, setSubjects] = useState([]);
@@ -133,6 +133,8 @@ export default function Results() {
   const [attendance, setAttendance] = useState({
     schoolOpened: "",
   });
+  const [classes, setClasses] = useState([]);
+  const [selectedClassId, setSelectedClassId] = useState("");
 
   const [behaviour, setBehaviour] = useState([]);
   const [psychomotor, setPsychomotor] = useState([]);
@@ -159,29 +161,41 @@ export default function Results() {
     })),
   );
 
-  // Default to current term when it loads
+  // Default to current term and 1st class when it loads
   useEffect(() => {
     if (currentTerm && !selectedTermId) setSelectedTermId(currentTerm.id);
   }, [currentTerm]);
+
+  useEffect(() => {
+    if (!selectedClassId && classes.length > 0) {
+      const defaultClassId = isTeacher
+        ? user?.teacher?.classId || classes[0].id
+        : classes[0].id;
+      setSelectedClassId(defaultClassId);
+    }
+  }, [classes, selectedClassId, isTeacher, user?.teacher?.classId]);
 
   useEffect(() => {
     Promise.all([
       api("/students"),
       api("/results/subjects"),
       api("/setup/school").catch(() => null),
+      api("/classes"),
     ])
-      .then(([s, sub, sch]) => {
+      .then(([s, sub, sch, c]) => {
         setStudents(s);
         setSubjects(sub);
         setSchool(sch);
+        setClasses(c);
       })
       .catch((e) => setError(e.message));
   }, []);
 
-  // console.log("Subjects for class", selected?.classId, subjects);
+  //console.log("classess", classes);
 
   const loadReport = async (studentId, termId, classId) => {
     if (!termId) return;
+    if (isTeacher && classId !== user?.teacher?.classId) return;
     setLoadingReport(true);
 
     try {
@@ -411,6 +425,8 @@ export default function Results() {
   };
 
   const selectStudent = (s) => {
+    if (isTeacher && s.classId !== user?.teacher?.classId) return;
+
     setSelected(s);
     console.log("Selected student", s);
     setReport(null);
@@ -420,6 +436,18 @@ export default function Results() {
   const handleTermChange = (termId) => {
     setSelectedTermId(termId);
     if (selected) loadReport(selected.id, termId, selected.classId);
+  };
+
+  const handleClassChange = (classId) => {
+    setSelectedClassId(classId);
+
+    // Clear selection if the current selected student is not in the new class.
+    if (selected?.classId !== classId) {
+      setSelected(null);
+      setReport(null);
+      setPrinterReport(null);
+      setSheet([]);
+    }
   };
 
   const saveReportCard = async () => {
@@ -1153,12 +1181,18 @@ setTimeout(() => window.print(), 500);
     w.document.close();
   };
 
+  const visibleClasses = isAdmin
+    ? classes
+    : classes.filter((cls) => cls.id === user?.teacher?.classId);
+
   const classSubjects = subjects.filter((s) => s.classId === selected?.classId);
   const filtered = students.filter(
     (s) =>
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.class.className.toLowerCase().includes(search.toLowerCase()) ||
-      s.admissionNumber?.toLowerCase().includes(search.toLowerCase()),
+      (!isTeacher || s.classId === user?.teacher?.classId) &&
+      (!selectedClassId || s.classId === selectedClassId) &&
+      (s.name.toLowerCase().includes(search.toLowerCase()) ||
+        s.class.className.toLowerCase().includes(search.toLowerCase()) ||
+        s.admissionNumber?.toLowerCase().includes(search.toLowerCase())),
   );
   const isMobile = window.innerWidth < 768;
   return (
@@ -1205,10 +1239,36 @@ setTimeout(() => window.print(), 500);
             onChange={(e) => handleTermChange(e.target.value)}
             style={{ ...inputStyle, marginBottom: 14, fontSize: 13 }}
           >
-            <option value="">Select term…</option>
+            <option value="">Select term...</option>
             {allTerms.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.label}
+              </option>
+            ))}
+          </select>
+
+          <label
+            style={{
+              display: "block",
+              fontSize: 11,
+              fontWeight: 700,
+              color: "#9ca3af",
+              marginBottom: 6,
+              textTransform: "uppercase",
+              letterSpacing: ".05em",
+            }}
+          >
+            Class
+          </label>
+          <select
+            value={selectedClassId}
+            onChange={(e) => handleClassChange(e.target.value)}
+            style={{ ...inputStyle, marginBottom: 14, fontSize: 13 }}
+          >
+            <option value="">Select Class</option>
+            {visibleClasses.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.className}
               </option>
             ))}
           </select>
