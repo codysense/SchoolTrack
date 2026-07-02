@@ -9,6 +9,7 @@ export default function Login() {
     password: "",
     admissionNumber: "",
     firstName: "",
+    passcode: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoad] = useState(false);
@@ -24,7 +25,7 @@ export default function Login() {
         await login(form.email, form.password);
         navigate("/");
       } else {
-        await studentLogin(form.admissionNumber, form.firstName);
+        await studentLogin(form.admissionNumber, form.firstName, form.passcode);
         navigate("/portal");
       }
     } catch (err) {
@@ -172,6 +173,12 @@ export default function Login() {
               </>
             ) : (
               <>
+                {field(
+                  "Passcode",
+                  "passcode",
+                  "text",
+                  "Enter your 6-character passcode",
+                )}
                 {field(
                   "Admission Number",
                   "admissionNumber",

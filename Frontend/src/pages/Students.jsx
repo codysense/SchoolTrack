@@ -14,6 +14,7 @@ import {
 } from "../components/ui";
 
 const empty = {
+  passcode: "",
   admissionNumber: "",
   name: "",
 
@@ -104,6 +105,7 @@ export default function Students() {
     e.stopPropagation();
     // console.log("Editing student:", s);
     setForm({
+      passcode: s.id.slice(-6).toUpperCase(),
       admissionNumber: s.admissionNumber || "",
       name: s.name || "",
 
@@ -953,7 +955,7 @@ export default function Students() {
           >
             <h4 style={{ margin: "24px 0 12px" }}>Passport Information</h4>
 
-            <div>
+            <div style={formGridStyle}>
               {/* <div style={{ gridColumn: "1 / -1" }}> */}
               {photoPreview && (
                 <img
@@ -977,6 +979,19 @@ export default function Students() {
                     setForm((p) => ({
                       ...p,
                       passportPhoto: e.target.files[0],
+                    }))
+                  }
+                  style={inputStyle}
+                />
+              </FormField>
+              <FormField label="Passcode">
+                <input
+                  disabled
+                  value={form.passcode}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      passcode: e.target.value,
                     }))
                   }
                   style={inputStyle}
