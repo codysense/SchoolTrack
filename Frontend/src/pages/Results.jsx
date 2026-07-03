@@ -147,7 +147,10 @@ export default function Results() {
     sportMistress: "",
   });
 
-  const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace("/api", "");
+  const API_BASE = (import.meta.env.VITE_API_URL || "/api/v1").replace(
+    "/api/v1",
+    "",
+  );
 
   const getMediaUrl = (value) =>
     value?.startsWith("http") ? value : `${API_BASE}${value}`;
@@ -515,17 +518,33 @@ export default function Results() {
   };
   console.log("Selected", selected);
   console.log("Printer Report", printerReport);
+
+  const classSection = [
+    "preschool",
+    "preparatory class 1",
+    "preparatory class 2",
+    "preparatory class 3",
+  ].includes(selected?.class?.className.toLowerCase())
+    ? "Nursery Section"
+    : "Primary Section";
   const printReport = () => {
     if (!printerReport || !selected) return;
 
-    const classSection = [
-      "preschool",
-      "preparatory class 1",
-      "preparatory class 2",
-      "preparatory class 3",
-    ].includes(selected.class.className.toLowerCase())
-      ? "Nursery Section"
-      : "Primary Section";
+    // Principal comment based on average score
+    let principalComment = "";
+    const averageScore = printerReport.summary?.average || 0;
+
+    if (averageScore >= 80) {
+      principalComment = "This is an excellent result. Keep it up!";
+    } else if (averageScore >= 60) {
+      principalComment =
+        "This is a very good result. Make it excellent next term.";
+    } else if (averageScore >= 40) {
+      principalComment = "This is a good result. Make it better next term.";
+    } else if (averageScore >= 0) {
+      principalComment = "This is a fair performance. Work harder next term.";
+    }
+
     const selectedTerm = allTerms.find((t) => t.id === selectedTermId);
     const termLabel = selectedTerm
       ? `${selectedTerm.sessionName} — ${selectedTerm.name}`
@@ -573,7 +592,7 @@ export default function Results() {
 
 <td>${r.assignmentScore ?? 0}</td>
 
-${classSection.toLowerCase() === "Primary Section".toLowerCase() ? <td>${r.ca1Score ?? 0}</td> : ""}
+${classSection.toLowerCase() === "Primary Section".toLowerCase() ? `<td>${r.ca1Score ?? 0}</td>` : ""}
 
 <td>${r.ca2Score ?? 0}</td>
 
@@ -1120,7 +1139,7 @@ ${renderAssessmentGrid(clubs)}
     <table style="width: 100%;">
        <tr > <td><b>Sports Mistress:</b></td> <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.sportMistress || ""}</td> </tr>
        <tr> <td><b>Class Teacher:</b></td>  <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.teacher || ""}</td> </tr>
-       <tr> <td><b>Head Teacher:</b></td>  <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.principal || ""}</td> </tr>
+       <tr> <td><b>Head Teacher:</b></td>  <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${principalComment || ""}</td> </tr>
     </table>
 </div>
 
@@ -1626,7 +1645,9 @@ setTimeout(() => window.print(), 500);
                                 <input
                                   type="number"
                                   min={0}
-                                  max={15}
+                                  max={
+                                    classSection === "Nursery Section" ? 30 : 15
+                                  }
                                   value={row.ca2Score}
                                   onChange={(e) =>
                                     updateSheet(i, "ca2Score", e.target.value)

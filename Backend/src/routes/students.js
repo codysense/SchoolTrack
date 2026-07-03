@@ -164,6 +164,7 @@ router.get("/:id", staffOnly, async (req, res) => {
       },
     },
   });
+
   if (!student) return res.status(404).json({ error: "Student not found" });
 
   const schoolPaid = student.payments.reduce((s, p) => s + p.amountPaid, 0);

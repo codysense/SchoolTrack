@@ -144,12 +144,16 @@ export default function Students() {
     setFormErr("");
     setModal(s);
   };
-  const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace("/api", "");
+  const API_BASE = (import.meta.env.VITE_API_URL || "/api/v1").replace(
+    "/api/v1",
+    "",
+  );
   const photoPreview = form.passportPhoto
     ? URL.createObjectURL(form.passportPhoto)
     : form.existingPassportPhoto
       ? `${API_BASE}${form.existingPassportPhoto}`
       : null;
+  console.log("Photo preview URL:", photoPreview);
 
   const handlePaymentHistory = async (e, s) => {
     e.stopPropagation();
