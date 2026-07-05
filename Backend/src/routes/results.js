@@ -752,9 +752,9 @@ router.post("/report-card", staffOnly, async (req, res) => {
         });
       }
 
-      if (ca2Score < 0 || ca2Score > 15) {
+      if (ca2Score < 0 || ca2Score > 30) {
         return res.status(400).json({
-          error: `CA2 score must be between 0 and 15`,
+          error: `CA2 score must be between 0 and 30`,
         });
       }
 

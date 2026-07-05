@@ -69,7 +69,7 @@ export function getOrdinal(n) {
   const s = ["th", "st", "nd", "rd"];
   const v = n % 100;
   const finalPosition = n + (s[(v - 20) % 10] || s[v] || s[0]);
-  console.log("Final Position", finalPosition);
+  // console.log("Final Position", finalPosition);
 
   return finalPosition.includes("1st", "2nd", "3rd") ? finalPosition : "Nil";
 }
@@ -79,7 +79,7 @@ export function getOrdinalHijri(n) {
   const s = ["th", "st", "nd", "rd"];
   const v = n % 100;
   const finalPosition = n + (s[(v - 20) % 10] || s[v] || s[0]);
-  console.log("Final Position", finalPosition);
+  // console.log("Final Position", finalPosition);
 
   return finalPosition;
 }
@@ -1987,6 +1987,7 @@ setTimeout(() => window.print(), 500);
                         <FormField label="Teacher Comment">
                           <textarea
                             rows={isMobile ? 3 : 2}
+                            autocomplete="on"
                             value={comments.teacher}
                             onChange={(e) =>
                               setComments({
@@ -2000,6 +2001,7 @@ setTimeout(() => window.print(), 500);
                         <FormField label="Sport Mistress Comment">
                           <textarea
                             rows={isMobile ? 3 : 2}
+                            autoComplete="on"
                             value={comments.sportMistress}
                             onChange={(e) =>
                               setComments({
