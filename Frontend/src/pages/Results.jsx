@@ -873,13 +873,13 @@ border-radius:6px;
 }
 
 .summary-card .label{
-font-size:10px;
+font-size:12px;
 font-weight:500;
 color:var(--dark-text);
 }
 
 .summary-card .value{
-font-size:10px;
+font-size:12px;
 font-weight:600;
 margin-top:4px;
 color:var(--dark-text);
@@ -897,14 +897,14 @@ font-weight:bold;
 }
 
 .signature-section{
-margin-top:30px;
+margin-top:20px;
 display:flex;
 justify-content:space-between;
 align-items:flex-end;
 }
 
 .signature-image{
-height:60px;
+height:40px;
 object-fit:contain;
 }
 
