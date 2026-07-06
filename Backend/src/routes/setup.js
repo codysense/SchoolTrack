@@ -2,7 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import { authenticate, adminOnly } from "../middleware/auth.js";
-import { uploadSchoolLogo } from "../middleware/uploadSchoolLogo.js";
+import { uploadSchoolFiles } from "../middleware/uploadSchool.js";
 import { uploadPrincipalSignature } from "../middleware/uploadSignature.js";
 
 const router = Router();
@@ -25,7 +25,7 @@ router.get("/school", async (_, res) => {
 // PUT update school info (upsert by first record)
 router.put(
   "/school",
-  uploadSchoolLogo.fields([
+  uploadSchoolFiles.fields([
     { name: "logo", maxCount: 1 },
     { name: "principalSignature", maxCount: 1 },
   ]),
@@ -43,9 +43,10 @@ router.put(
       accountNumber,
       bankName,
     } = req.body;
-
     const logoFile = req.files?.["logo"]?.[0];
     const sigFile = req.files?.["principalSignature"]?.[0];
+    console.log("Logo File:", logoFile);
+    console.log("Signature File:", sigFile);
 
     let school = await prisma.school.findFirst();
     if (school) {

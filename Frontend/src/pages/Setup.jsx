@@ -99,35 +99,64 @@ export default function Setup() {
   // payload is built on submit to include any selected file
 
   // ── School info ───────────────────────────────────────────────────────────
-  const saveSchool = async () => {
-    setSchoolSaving(true);
-    setSchoolMsg("");
-    try {
-      const payload = new FormData();
+  
+const saveSchool = async () => {
+  setSchoolSaving(true);
+  setSchoolMsg("");
+  try {
+    const payload = new FormData();
 
-      Object.entries(schoolForm).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== "") {
-          if (value instanceof File) {
-            // backend expects file field name 'logo'
-            payload.append("logo", value);
-          } else {
-            payload.append(key, value);
-          }
-        }
-      });
+    Object.entries(schoolForm).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        // Just append with the original key. 
+        // This works perfectly for both text and file objects.
+        payload.append(key, value);
+      }
+    });
 
-      const updated = await api("/setup/school", {
-        method: "PUT",
-        body: payload,
-      });
-      setSchool(updated);
-      setSchoolMsg("School information saved successfully.");
-    } catch (e) {
-      setSchoolMsg(`Error: ${e.message}`);
-    } finally {
-      setSchoolSaving(false);
-    }
-  };
+    const updated = await api("/setup/school", {
+      method: "PUT",
+      body: payload,
+    });
+    setSchool(updated);
+    setSchoolMsg("School information saved successfully.");
+  } catch (e) {
+    setSchoolMsg(`Error: ${e.message}`);
+  } finally {
+    setSchoolSaving(false);
+  }
+};
+  
+  // const saveSchool = async () => {
+  //   setSchoolSaving(true);
+  //   setSchoolMsg("");
+  //   try {
+  //     const payload = new FormData();
+
+  //     Object.entries(schoolForm).forEach(([key, value]) => {
+  //       if (value !== undefined && value !== null && value !== "") {
+  //         if (value instanceof File) {
+  //           // backend expects file field name 'logo'
+  //           payload.append("logo", value);
+  //           payload.append("principalSignature", value);
+  //         } else {
+  //           payload.append(key, value);
+  //         }
+  //       }
+  //     });
+
+  //     const updated = await api("/setup/school", {
+  //       method: "PUT",
+  //       body: payload,
+  //     });
+  //     setSchool(updated);
+  //     setSchoolMsg("School information saved successfully.");
+  //   } catch (e) {
+  //     setSchoolMsg(`Error: ${e.message}`);
+  //   } finally {
+  //     setSchoolSaving(false);
+  //   }
+  // };
 
   // ── Users ─────────────────────────────────────────────────────────────────
   const openCreate = () => {
@@ -218,7 +247,7 @@ export default function Setup() {
     if (!ok) return;
 
     try {
-      await api(`/setup/assessment-category/${id}`, {
+      await api(`/assessment-categories/${id}`, {
         method: "DELETE",
       });
 
