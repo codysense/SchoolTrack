@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { authenticate, adminOnly, staffOnly } from "../middleware/auth.js";
 import { log } from "../services/audit.service.js";
 import { uploadStudentPhoto } from "../middleware/uploadStudentPhoto.js";
+import { uploadToCloudinary } from "./utils/cloudinary.js";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -245,46 +246,49 @@ router.post(
   adminOnly,
   uploadStudentPhoto.single("passportPhoto"),
   async (req, res) => {
-    const passportPhoto = req.file
-      ? `/uploads/students/${req.file.filename}`
-      : null;
-    let {
-      admissionNumber,
-      name,
-
-      // Parent Information
-      parentName,
-      parentPhone,
-      parentEmail,
-      parentAddress,
-
-      // Academic Information
-      classId,
-      entryClass,
-      admissionDate,
-
-      // Student Information
-      gender,
-      dateOfBirth,
-      sportHouse,
-
-      // Health Information
-      bloodGroup,
-      genotype,
-
-      // Physical Information
-      height,
-      weight,
-
-      // Media
-      // passportPhoto,
-    } = req.body;
-
-    if (!admissionNumber?.trim()) {
-      admissionNumber = await generateAdmissionNumber(classId);
-    }
-
     try {
+      // 1. If a passport photo was uploaded, upload it to Cloudinary
+      let passportPhotoUrl = null;
+      if (req.file) {
+        passportPhotoUrl = await uploadToCloudinary(
+          req.file.buffer,
+          "students",
+        );
+      }
+
+      let {
+        admissionNumber,
+        name,
+
+        // Parent Information
+        parentName,
+        parentPhone,
+        parentEmail,
+        parentAddress,
+
+        // Academic Information
+        classId,
+        entryClass,
+        admissionDate,
+
+        // Student Information
+        gender,
+        dateOfBirth,
+        sportHouse,
+
+        // Health Information
+        bloodGroup,
+        genotype,
+
+        // Physical Information
+        height,
+        weight,
+      } = req.body;
+
+      if (!admissionNumber?.trim()) {
+        admissionNumber = await generateAdmissionNumber(classId);
+      }
+
       const student = await prisma.student.create({
         data: {
           admissionNumber: admissionNumber.trim(),
@@ -321,8 +325,8 @@ router.post(
               ? parseFloat(weight)
               : null,
 
-          // Media
-          passportPhoto: passportPhoto,
+          // Media (Saves Cloudinary HTTPS URL)
+          passportPhoto: passportPhotoUrl,
         },
         include: {
           class: true,
@@ -355,104 +359,332 @@ router.post(
 );
 
 // PUT update student
-
 router.put(
   "/:id",
   adminOnly,
   uploadStudentPhoto.single("passportPhoto"),
   async (req, res) => {
-    const existingStudent = await prisma.student.findUnique({
-      where: { id: req.params.id },
-    });
+    try {
+      const existingStudent = await prisma.student.findUnique({
+        where: { id: req.params.id },
+      });
 
-    if (!existingStudent) {
-      return res.status(404).json({
-        error: "Student not found",
+      if (!existingStudent) {
+        return res.status(404).json({
+          error: "Student not found",
+        });
+      }
+
+      // 1. If a new photo is uploaded, send it to Cloudinary; otherwise keep existing image URL
+      let passportPhotoUrl = existingStudent.passportPhoto;
+      if (req.file) {
+        passportPhotoUrl = await uploadToCloudinary(
+          req.file.buffer,
+          "students",
+        );
+      }
+
+      let {
+        name,
+        parentPhone,
+        classId,
+        admissionNumber,
+        isActive,
+        parentName,
+        parentEmail,
+        parentAddress,
+        entryClass,
+        admissionDate,
+        gender,
+        dateOfBirth,
+        sportHouse,
+        bloodGroup,
+        genotype,
+        height,
+        weight,
+      } = req.body;
+
+      if (!admissionNumber?.trim()) {
+        admissionNumber = await generateAdmissionNumber(classId);
+      }
+
+      const student = await prisma.student.update({
+        where: { id: req.params.id },
+        data: {
+          admissionNumber: admissionNumber.trim(),
+          name: name?.trim(),
+
+          // Parent Information
+          parentName: parentName?.trim() || null,
+          parentPhone: parentPhone?.trim(),
+          parentEmail: parentEmail?.trim() || null,
+          parentAddress: parentAddress?.trim() || null,
+
+          // Academic Information
+          classId,
+          entryClass: entryClass?.trim() || null,
+          admissionDate: admissionDate ? new Date(admissionDate) : null,
+
+          // Student Information
+          gender: gender || null,
+          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+          sportHouse: sportHouse?.trim() || null,
+
+          // Health Information
+          bloodGroup: bloodGroup?.trim() || null,
+          genotype: genotype?.trim() || null,
+
+          // Physical Information
+          height:
+            height !== undefined && height !== null && height !== ""
+              ? parseFloat(height)
+              : null,
+
+          weight:
+            weight !== undefined && weight !== null && weight !== ""
+              ? parseFloat(weight)
+              : null,
+
+          // Media (Saves Cloudinary HTTPS URL)
+          passportPhoto: passportPhotoUrl,
+
+          ...(isActive !== undefined && { isActive }),
+        },
+        include: { class: true },
+      });
+
+      await log({
+        req,
+        action: "UPDATE",
+        entity: "Student",
+        entityId: student.id,
+        detail: `Updated student "${student.name}"`,
+      });
+
+      res.json(student);
+    } catch (e) {
+      console.error(e);
+      return res.status(500).json({
+        error: "Failed to update student",
       });
     }
-
-    const passportPhoto = req.file
-      ? `/uploads/students/${req.file.filename}`
-      : existingStudent.passportPhoto;
-    let {
-      name,
-      parentPhone,
-      classId,
-      admissionNumber,
-      isActive,
-      parentName,
-      parentEmail,
-      parentAddress,
-      entryClass,
-      admissionDate,
-      gender,
-      dateOfBirth,
-      sportHouse,
-      bloodGroup,
-      genotype,
-      height,
-      weight,
-    } = req.body;
-    // console.log("Updating student with data:", req.file);
-
-    if (!admissionNumber?.trim()) {
-      admissionNumber = await generateAdmissionNumber(classId);
-    }
-
-    const student = await prisma.student.update({
-      where: { id: req.params.id },
-      data: {
-        admissionNumber: admissionNumber.trim(),
-        name: name?.trim(),
-
-        // Parent Information
-        parentName: parentName?.trim() || null,
-        parentPhone: parentPhone?.trim(),
-        parentEmail: parentEmail?.trim() || null,
-        parentAddress: parentAddress?.trim() || null,
-
-        // Academic Information
-        classId,
-        entryClass: entryClass?.trim() || null,
-        admissionDate: admissionDate ? new Date(admissionDate) : null,
-
-        // Student Information
-        gender: gender || null,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-        sportHouse: sportHouse?.trim() || null,
-
-        // Health Information
-        bloodGroup: bloodGroup?.trim() || null,
-        genotype: genotype?.trim() || null,
-
-        // Physical Information
-        height:
-          height !== undefined && height !== null && height !== ""
-            ? parseFloat(height)
-            : null,
-
-        weight:
-          weight !== undefined && weight !== null && weight !== ""
-            ? parseFloat(weight)
-            : null,
-
-        // Media
-        passportPhoto: passportPhoto,
-
-        ...(isActive !== undefined && { isActive }),
-      },
-      include: { class: true },
-    });
-    await log({
-      req,
-      action: "UPDATE",
-      entity: "Student",
-      entityId: student.id,
-      detail: `Updated student "${student.name}"`,
-    });
-    res.json(student);
   },
 );
+
+// // POST create student
+// router.post(
+//   "/",
+//   adminOnly,
+//   uploadStudentPhoto.single("passportPhoto"),
+//   async (req, res) => {
+//     const passportPhoto = req.file
+//       ? `/uploads/students/${req.file.filename}`
+//       : null;
+//     let {
+//       admissionNumber,
+//       name,
+
+//       // Parent Information
+//       parentName,
+//       parentPhone,
+//       parentEmail,
+//       parentAddress,
+
+//       // Academic Information
+//       classId,
+//       entryClass,
+//       admissionDate,
+
+//       // Student Information
+//       gender,
+//       dateOfBirth,
+//       sportHouse,
+
+//       // Health Information
+//       bloodGroup,
+//       genotype,
+
+//       // Physical Information
+//       height,
+//       weight,
+
+//       // Media
+//       // passportPhoto,
+//     } = req.body;
+
+//     if (!admissionNumber?.trim()) {
+//       admissionNumber = await generateAdmissionNumber(classId);
+//     }
+
+//     try {
+//       const student = await prisma.student.create({
+//         data: {
+//           admissionNumber: admissionNumber.trim(),
+//           name: name?.trim(),
+
+//           // Parent Information
+//           parentName: parentName?.trim() || null,
+//           parentPhone: parentPhone?.trim(),
+//           parentEmail: parentEmail?.trim() || null,
+//           parentAddress: parentAddress?.trim() || null,
+
+//           // Academic Information
+//           classId,
+//           entryClass: entryClass?.trim() || null,
+//           admissionDate: admissionDate ? new Date(admissionDate) : null,
+
+//           // Student Information
+//           gender: gender || null,
+//           dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+//           sportHouse: sportHouse?.trim() || null,
+
+//           // Health Information
+//           bloodGroup: bloodGroup?.trim() || null,
+//           genotype: genotype?.trim() || null,
+
+//           // Physical Information
+//           height:
+//             height !== undefined && height !== null && height !== ""
+//               ? parseFloat(height)
+//               : null,
+
+//           weight:
+//             weight !== undefined && weight !== null && weight !== ""
+//               ? parseFloat(weight)
+//               : null,
+
+//           // Media
+//           passportPhoto: passportPhoto,
+//         },
+//         include: {
+//           class: true,
+//         },
+//       });
+
+//       await log({
+//         req,
+//         action: "CREATE",
+//         entity: "Student",
+//         entityId: student.id,
+//         detail: `Registered student "${student.name}" (${student.admissionNumber}) in ${student.class.className}`,
+//       });
+
+//       res.status(201).json(student);
+//     } catch (e) {
+//       if (e.code === "P2002") {
+//         return res.status(409).json({
+//           error: "Admission number already exists",
+//         });
+//       }
+
+//       console.error(e);
+
+//       return res.status(500).json({
+//         error: "Failed to create student",
+//       });
+//     }
+//   },
+// );
+
+// // PUT update student
+
+// router.put(
+//   "/:id",
+//   adminOnly,
+//   uploadStudentPhoto.single("passportPhoto"),
+//   async (req, res) => {
+//     const existingStudent = await prisma.student.findUnique({
+//       where: { id: req.params.id },
+//     });
+
+//     if (!existingStudent) {
+//       return res.status(404).json({
+//         error: "Student not found",
+//       });
+//     }
+
+//     const passportPhoto = req.file
+//       ? `/uploads/students/${req.file.filename}`
+//       : existingStudent.passportPhoto;
+//     let {
+//       name,
+//       parentPhone,
+//       classId,
+//       admissionNumber,
+//       isActive,
+//       parentName,
+//       parentEmail,
+//       parentAddress,
+//       entryClass,
+//       admissionDate,
+//       gender,
+//       dateOfBirth,
+//       sportHouse,
+//       bloodGroup,
+//       genotype,
+//       height,
+//       weight,
+//     } = req.body;
+//     // console.log("Updating student with data:", req.file);
+
+//     if (!admissionNumber?.trim()) {
+//       admissionNumber = await generateAdmissionNumber(classId);
+//     }
+
+//     const student = await prisma.student.update({
+//       where: { id: req.params.id },
+//       data: {
+//         admissionNumber: admissionNumber.trim(),
+//         name: name?.trim(),
+
+//         // Parent Information
+//         parentName: parentName?.trim() || null,
+//         parentPhone: parentPhone?.trim(),
+//         parentEmail: parentEmail?.trim() || null,
+//         parentAddress: parentAddress?.trim() || null,
+
+//         // Academic Information
+//         classId,
+//         entryClass: entryClass?.trim() || null,
+//         admissionDate: admissionDate ? new Date(admissionDate) : null,
+
+//         // Student Information
+//         gender: gender || null,
+//         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+//         sportHouse: sportHouse?.trim() || null,
+
+//         // Health Information
+//         bloodGroup: bloodGroup?.trim() || null,
+//         genotype: genotype?.trim() || null,
+
+//         // Physical Information
+//         height:
+//           height !== undefined && height !== null && height !== ""
+//             ? parseFloat(height)
+//             : null,
+
+//         weight:
+//           weight !== undefined && weight !== null && weight !== ""
+//             ? parseFloat(weight)
+//             : null,
+
+//         // Media
+//         passportPhoto: passportPhoto,
+
+//         ...(isActive !== undefined && { isActive }),
+//       },
+//       include: { class: true },
+//     });
+//     await log({
+//       req,
+//       action: "UPDATE",
+//       entity: "Student",
+//       entityId: student.id,
+//       detail: `Updated student "${student.name}"`,
+//     });
+//     res.json(student);
+//   },
+// );
 
 // DELETE student
 router.delete("/:id", adminOnly, async (req, res) => {

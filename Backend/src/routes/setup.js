@@ -2,8 +2,9 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import { authenticate, adminOnly } from "../middleware/auth.js";
-import { uploadSchoolFiles } from "../middleware/uploadSchool.js";
+//import { uploadSchoolFiles } from "../middleware/uploadSchool.js";
 import { uploadPrincipalSignature } from "../middleware/uploadSignature.js";
+import { uploadSchoolFiles, uploadToCloudinary } from "./utils/cloudinary.js";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -30,83 +31,178 @@ router.put(
     { name: "principalSignature", maxCount: 1 },
   ]),
   async (req, res) => {
-    const {
-      name,
-      address,
-      phone,
-      email,
-      motto,
-      logoUrl,
-      principalSignatureUrl,
-      website,
-      accountName,
-      accountNumber,
-      bankName,
-    } = req.body;
-    const logoFile = req.files?.["logo"]?.[0];
-    const sigFile = req.files?.["principalSignature"]?.[0];
-    console.log("Logo File:", logoFile);
-    console.log("Signature File:", sigFile);
+    try {
+      const {
+        name,
+        address,
+        phone,
+        email,
+        motto,
+        logoUrl,
+        principalSignatureUrl,
+        website,
+        accountName,
+        accountNumber,
+        bankName,
+      } = req.body;
 
-    let school = await prisma.school.findFirst();
-    if (school) {
-      const finalLogoUrl = logoFile
-        ? `/uploads/school-logos/${logoFile.filename}`
-        : logoUrl || school.logoUrl;
+      const logoFile = req.files?.["logo"]?.[0];
+      const sigFile = req.files?.["principalSignature"]?.[0];
 
-      const finalPrincipalSignatureUrl = sigFile
-        ? `/uploads/principal-signatures/${sigFile.filename}`
-        : principalSignatureUrl || school.principalSignatureUrl;
-      school = await prisma.school.update({
-        where: { id: school.id },
-        data: {
-          name,
-          address,
-          phone,
-          email,
-          motto,
-          logoUrl: finalLogoUrl,
-          principalSignatureUrl: finalPrincipalSignatureUrl,
-          website,
-          accountName,
-          accountNumber,
-          bankName,
-          updatedAt: new Date(),
-        },
-      });
-    } else {
-      const finalLogoUrl = logoFile
-        ? `/uploads/school-logos/${logoFile.filename}`
-        : logoUrl || null;
+      let school = await prisma.school.findFirst();
 
-      const finalPrincipalSignatureUrl = sigFile
-        ? `/uploads/principal-signatures/${sigFile.filename}`
-        : principalSignatureUrl || null;
+      // Determine the final URLs (Use new upload, fall back to text input URL, or keep existing DB URL)
+      let finalLogoUrl = logoUrl || school?.logoUrl || null;
+      let finalPrincipalSignatureUrl =
+        principalSignatureUrl || school?.principalSignatureUrl || null;
 
-      school = await prisma.school.create({
-        data: {
-          name,
-          address,
-          phone,
-          email,
-          motto,
-          logoUrl: finalLogoUrl,
-          principalSignatureUrl: finalPrincipalSignatureUrl,
-          website,
-          accountName,
-          accountNumber,
-          bankName,
-          createdAt: new Date(),
-        },
-      });
+      // If a new Logo file was uploaded, stream it to Cloudinary
+      if (logoFile) {
+        finalLogoUrl = await uploadToCloudinary(
+          logoFile.buffer,
+          "school-logos",
+        );
+      }
+
+      // If a new Signature file was uploaded, stream it to Cloudinary
+      if (sigFile) {
+        finalPrincipalSignatureUrl = await uploadToCloudinary(
+          sigFile.buffer,
+          "principal-signatures",
+        );
+      }
+
+      if (school) {
+        school = await prisma.school.update({
+          where: { id: school.id },
+          data: {
+            name,
+            address,
+            phone,
+            email,
+            motto,
+            logoUrl: finalLogoUrl,
+            principalSignatureUrl: finalPrincipalSignatureUrl,
+            website,
+            accountName,
+            accountNumber,
+            bankName,
+            updatedAt: new Date(),
+          },
+        });
+      } else {
+        school = await prisma.school.create({
+          data: {
+            name,
+            address,
+            phone,
+            email,
+            motto,
+            logoUrl: finalLogoUrl,
+            principalSignatureUrl: finalPrincipalSignatureUrl,
+            website,
+            accountName,
+            accountNumber,
+            bankName,
+            createdAt: new Date(),
+          },
+        });
+      }
+
+      res.json(school);
+    } catch (error) {
+      console.error("School save error:", error);
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to save school setup" });
     }
-    res.json(school);
   },
 );
+// router.put(
+//   "/school",
+//   uploadSchoolFiles.fields([
+//     { name: "logo", maxCount: 1 },
+//     { name: "principalSignature", maxCount: 1 },
+//   ]),
+//   async (req, res) => {
+//     const {
+//       name,
+//       address,
+//       phone,
+//       email,
+//       motto,
+//       logoUrl,
+//       principalSignatureUrl,
+//       website,
+//       accountName,
+//       accountNumber,
+//       bankName,
+//     } = req.body;
+//     const logoFile = req.files?.["logo"]?.[0];
+//     const sigFile = req.files?.["principalSignature"]?.[0];
+//     console.log("Logo File:", logoFile);
+//     console.log("Signature File:", sigFile);
+
+//     let school = await prisma.school.findFirst();
+//     if (school) {
+//       const finalLogoUrl = logoFile
+//         ? `/uploads/school-logos/${logoFile.filename}`
+//         : logoUrl || school.logoUrl;
+
+//       const finalPrincipalSignatureUrl = sigFile
+//         ? `/uploads/principal-signatures/${sigFile.filename}`
+//         : principalSignatureUrl || school.principalSignatureUrl;
+//       school = await prisma.school.update({
+//         where: { id: school.id },
+//         data: {
+//           name,
+//           address,
+//           phone,
+//           email,
+//           motto,
+//           logoUrl: finalLogoUrl,
+//           principalSignatureUrl: finalPrincipalSignatureUrl,
+//           website,
+//           accountName,
+//           accountNumber,
+//           bankName,
+//           updatedAt: new Date(),
+//         },
+//       });
+//     } else {
+//       const finalLogoUrl = logoFile
+//         ? `/uploads/school-logos/${logoFile.filename}`
+//         : logoUrl || null;
+
+//       const finalPrincipalSignatureUrl = sigFile
+//         ? `/uploads/principal-signatures/${sigFile.filename}`
+//         : principalSignatureUrl || null;
+
+//       school = await prisma.school.create({
+//         data: {
+//           name,
+//           address,
+//           phone,
+//           email,
+//           motto,
+//           logoUrl: finalLogoUrl,
+//           principalSignatureUrl: finalPrincipalSignatureUrl,
+//           website,
+//           accountName,
+//           accountNumber,
+//           bankName,
+//           createdAt: new Date(),
+//         },
+//       });
+//     }
+//     res.json(school);
+//   },
+// );
 
 // ── Users (Admin + Teachers) ──────────────────────────────────────────────────
 
 // GET all users
+
 router.get("/users", async (_, res) => {
   const users = await prisma.user.findMany({
     select: {
