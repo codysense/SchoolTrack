@@ -904,7 +904,7 @@ align-items:flex-end;
 }
 
 .signature-image{
-height:40px;
+height:30px;
 object-fit:contain;
 }
 
