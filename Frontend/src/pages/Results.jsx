@@ -27,6 +27,12 @@ function gradeColor(g) {
 export function formatHijrahDate(dateInput) {
   const date = new Date(dateInput);
 
+  console.log(
+    "Formatting Hijrah date for input:",
+    dateInput,
+    "Parsed date:",
+    date,
+  );
   // Gregorian parts
   const weekday = new Intl.DateTimeFormat("en-GB", {
     weekday: "long",
@@ -530,6 +536,17 @@ export default function Results() {
   const printReport = () => {
     if (!printerReport || !selected) return;
 
+    const promotioninfo =
+      printerReport.summary?.termAverages.cummulative <= 39
+        ? "Advised to discuss with the school Management"
+        : "Promoted to the next Class";
+
+    const promotionRemark =
+      printerReport.student?.class?.className === "Primary 6" &&
+      printerReport.summary?.termAverages.cummulative >= 40
+        ? "Completed primary education and transited to JSS 1"
+        : promotioninfo;
+
     // Principal comment based on average score
     let principalComment = "";
     const averageScore = printerReport.summary?.average || 0;
@@ -1000,8 +1017,8 @@ ${attendance.schoolOpened || 0}
 ${attendance.present || 0}
 </div>
 <div>
-<b>Punctual: </b>
-${attendance.punctual || 0}
+<b>Absent: </b>
+${attendance.absent || 0}
 </div>
 
 <div>
@@ -1010,7 +1027,7 @@ ${student.gender || ""}
 </div>
 
 <div>
-<b>Date Of Birth:</b>
+<b>Date of Birth:</b>
 ${student.dateOfBirth ? new Date(student.dateOfBirth).toLocaleDateString() : ""}
 </div>
 
@@ -1044,9 +1061,9 @@ ${renderAssessmentGrid(psychomotor)}
 <table>
 <thead>
 <tr>
-<th>Subject</th>
-<th>Att</th>
-<th>Ass</th>
+<th>Subjects</th>
+<th>Attendance</th>
+<th>Assignment</th>
 
 ${classSection.toLowerCase() === "primary section" ? "<th>CA1</th>" : ""}
 
@@ -1056,15 +1073,15 @@ ${classSection.toLowerCase() === "primary section" ? "<th>CA1</th>" : ""}
 
 <th>Total</th>
 
-${selectedTerm?.name === "Second Term" || selectedTerm?.name === "Third Term" ? "<th>1st</th>" : ""}
+${selectedTerm?.name === "Second Term" || selectedTerm?.name === "Third Term" ? "<th>1st Term</th>" : ""}
 
-${selectedTerm?.name === "Third Term" ? "<th>2nd</th>" : ""}
+${selectedTerm?.name === "Third Term" ? "<th>2nd Term</th>" : ""}
 
 <th>Grade</th>
 
-<th>Pos</th>
+<th>Position</th>
 
-<th>Remark</th>
+<th>Remarks</th>
 
 </tr>
 
@@ -1168,9 +1185,12 @@ Director/Head
 <div class="next-term-promotion">
 <div>
 <b>Next Term Begins:</b>
-${formatHijrahDate(selectedTerm.nextTermDateBegins?.split("T")[0]) || ""}
+${formatHijrahDate(printerReport.term.nextTermDateBegins?.split("T")[0]) || ""}
 </div>
 
+<div>
+      <strong> ${selectedTerm.name === "Third Term" ? promotionRemark : ""}</strong>
+</div>
 
 </div>
 
@@ -1987,7 +2007,7 @@ setTimeout(() => window.print(), 500);
                         <FormField label="Teacher Comment">
                           <textarea
                             rows={isMobile ? 3 : 2}
-                            autocomplete="on"
+                            autoComplete="on"
                             value={comments.teacher}
                             onChange={(e) =>
                               setComments({

@@ -31,9 +31,7 @@ export default function StudentPortal() {
   useEffect(() => {
     Promise.all([
       api("/portal/me"),
-      fetch("/api/portal/school-info")
-        .then((r) => r.json())
-        .catch(() => null),
+      api("/portal/school-info").catch(() => null),
     ])
       .then(([p, s]) => {
         setProfile(p);
@@ -43,7 +41,7 @@ export default function StudentPortal() {
       .finally(() => setLoading(false));
   }, []);
 
-  console.log({ profile, school });
+  console.log({ Profile: profile, School: school });
 
   const contactSchool = () => {
     const phone = school?.phone?.replace(/\D/g, ""); // Remove non-digit characters
@@ -89,7 +87,10 @@ Thank you.
 
   console.log("Active term", activeTerm);
 
-  const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace("/api", "");
+  const API_BASE = (import.meta.env.VITE_API_URL || "/api/V1").replace(
+    "/api/V1",
+    "",
+  );
   const getMediaUrl = (value) =>
     value?.startsWith("http") ? value : `${API_BASE}${value}`;
 
@@ -97,7 +98,17 @@ Thank you.
     if (!results || !activeTerm || !profile) return;
 
     const selectedTerm = activeTerm.termId;
-    console.log("Select Term", activeTerm);
+    // console.log("Select Term", activeTerm);
+    const promotioninfo =
+      results.summary?.termAverages.cummulative <= 39
+        ? "Advised to discuss with the school Management"
+        : "Promoted to the next Class";
+
+    const promotionRemark =
+      results.student?.class?.className === "Primary 6" &&
+      results.summary?.termAverages.cummulative >= 40
+        ? "Completed primary education and transited to JSS 1"
+        : promotioninfo;
 
     const watermarkHtml = school?.logoUrl
       ? `
@@ -969,7 +980,7 @@ ${r.remark}
   }
   
   .signature-image{
-  height:60px;
+  height:30px;
   object-fit:contain;
   }
   
@@ -1065,8 +1076,8 @@ ${r.remark}
   ${attendance.present || 0}
   </div>
   <div>
-  <b>Punctual: </b>
-  ${attendance.punctual || 0}
+  <b>Absent: </b>
+  ${attendance.absent || 0}
   </div>
   
   <div>
@@ -1075,7 +1086,7 @@ ${r.remark}
   </div>
   
   <div>
-  <b>Date Of Birth:</b>
+  <b>Date of Birth:</b>
   ${student.dateOfBirth ? new Date(student.dateOfBirth).toLocaleDateString() : ""}
   </div>
   
@@ -1113,11 +1124,11 @@ ${r.remark}
   
   <tr>
   
-  <th>Subject</th>
+  <th>Subjects</th>
   
-  <th>Att</th>
+  <th>Attendance</th>
   
-  <th>Ass</th>
+  <th>Assignment</th>
   
   ${classSection.toLowerCase() === "primary section" ? "<th>CA1</th>" : ""}
 
@@ -1126,15 +1137,15 @@ ${r.remark}
   
   <th>Total</th>
   
-  ${selectedTerm?.name === "Second Term" || selectedTerm?.name === "Third Term" ? "<th>1st</th>" : ""}
+  ${activeTerm?.termName === "Second Term" || activeTerm?.termName === "Third Term" ? "<th>1st Term</th>" : ""}
   
-  ${selectedTerm?.name === "Third Term" ? "<th>2nd</th>" : ""}
+  ${activeTerm?.termName === "Third Term" ? "<th>2nd Term</th>" : ""}
   
   <th>Grade</th>
   
-  <th>Pos</th>
+  <th>Position</th>
   
-  <th>Remark</th>
+  <th>Remarks</th>
   
   </tr>
   
@@ -1240,6 +1251,10 @@ ${r.remark}
   <b>Next Term Begins:</b>
   ${formatHijrahDate(results.term.nextTermDateBegins?.split("T")[0]) || ""}
   </div>
+
+  <div>
+      <strong> ${activeTerm?.termName === "Third Term" ? promotionRemark : ""}</strong>
+</div>
   
   
   </div>

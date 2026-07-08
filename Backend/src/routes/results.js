@@ -63,7 +63,7 @@ async function computeStudentPosition({ classId, termId }) {
   // 4. Sort by total (descending)
   studentAverages.sort((a, b) => b.total - a.total);
 
-  // 5. Assign positions (with tie handling ✅)
+  // 5. Assign positions (with tie handling )
   let currentPosition = 1;
 
   const ranked = studentAverages.map((student, index, arr) => {
@@ -86,66 +86,6 @@ function getRemark(score) {
   if (score >= 40) return "Good";
   if (score >= 0) return "Poor";
 }
-
-// async function computeSubjectPositions({ classId, termId }) {
-//   const results = await prisma.result.findMany({
-//     where: {
-//       termId,
-//       student: {
-//         classId,
-//       },
-//     },
-//     select: {
-//       studentId: true,
-//       subjectId: true,
-//       TotalScore: true,
-//     },
-//   });
-
-//   // console.log(
-//   //   "Fetched results for subject positions and result object:",
-//   //   results.length,
-//   //   results,
-//   // );
-
-//   // Group by subject
-//   const subjectGroups = {};
-
-//   results.forEach((r) => {
-//     if (!subjectGroups[r.subjectId]) {
-//       subjectGroups[r.subjectId] = [];
-//     }
-
-//     subjectGroups[r.subjectId].push(r);
-//   });
-
-//   const subjectPositions = {};
-
-//   // Compute ranking per subject
-//   Object.keys(subjectGroups).forEach((subjectId) => {
-//     const list = subjectGroups[subjectId];
-
-//     // Sort descending
-//     list.sort((a, b) => b.TotalScore - a.TotalScore);
-
-//     let currentPosition = 1;
-
-//     subjectPositions[subjectId] = list.map((item, index, arr) => {
-//       if (index > 0 && item.totalScore < arr[index - 1].totalScore) {
-//         currentPosition = index + 1;
-//       }
-
-//       return {
-//         studentId: item.studentId,
-//         subjectId,
-//         totalScore: item.totalScore,
-//         position: currentPosition,
-//       };
-//     });
-//   });
-
-//   return subjectPositions;
-// }
 
 // Subjects
 
@@ -283,10 +223,15 @@ router.get("/student-result/:studentId", async (req, res) => {
       });
     }
 
+    // 1. Fetch current term and include all terms in this session
     const currentTerm = await prisma.term.findUnique({
       where: { id: termId },
       include: {
-        session: true,
+        session: {
+          include: {
+            terms: true,
+          },
+        },
       },
     });
 
@@ -305,30 +250,18 @@ router.get("/student-result/:studentId", async (req, res) => {
 
     const school = await prisma.school.findFirst();
 
+    // Helper to get previous terms
     async function getPreviousTerms(termId) {
-      const term = await prisma.term.findUnique({
-        where: { id: termId },
-        include: {
-          session: {
-            include: {
-              terms: true,
-            },
-          },
-        },
-      });
-
-      const orderedTerms = term.session.terms.sort((a, b) => {
+      const orderedTerms = currentTerm.session.terms.sort((a, b) => {
         const order = {
           "First Term": 1,
           "Second Term": 2,
           "Third Term": 3,
         };
-
         return order[a.name] - order[b.name];
       });
 
       const currentIndex = orderedTerms.findIndex((t) => t.id === termId);
-
       return orderedTerms.slice(0, currentIndex);
     }
 
@@ -340,7 +273,7 @@ router.get("/student-result/:studentId", async (req, res) => {
       });
     }
 
-    // 1. Fetch student subject results
+    // 2. Fetch student subject results for the current term
     const results = await prisma.result.findMany({
       where: {
         studentId,
@@ -354,30 +287,67 @@ router.get("/student-result/:studentId", async (req, res) => {
       },
     });
 
-    // if (!results.length) {
-    //   return res.status(404).json({
-    //     error: "No results found for this student",
-    //   });
-    // }
+    // 3. Fetch all session results to compute overall term averages
+    const sessionTermIds = currentTerm.session.terms.map((t) => t.id);
+    const allSessionResults = await prisma.result.findMany({
+      where: {
+        studentId,
+        termId: {
+          in: sessionTermIds,
+        },
+      },
+      include: {
+        term: true,
+      },
+    });
 
-    // if (!results.length) {
-    //   const results = await prisma.subject.findMany({
-    //     where: classId ? { classId } : undefined,
-    //     include: { class: true },
-    //     orderBy: { name: "asc" },
-    //   });
-    //   // res.json(subjects);
-    // return res.status(404).json({
-    //   error: "No results found for student",
-    // });
+    // Group results by term to compute overall averages
+    const termScores = {
+      "First Term": [],
+      "Second Term": [],
+      "Third Term": [],
+    };
 
-    // 2. Compute subject positions
+    allSessionResults.forEach((r) => {
+      if (termScores[r.term.name]) {
+        termScores[r.term.name].push(Number(r.TotalScore || 0));
+      }
+    });
+
+    const firstTermAvg =
+      termScores["First Term"].length > 0
+        ? termScores["First Term"].reduce((a, b) => a + b, 0) /
+          termScores["First Term"].length
+        : null;
+
+    const secondTermAvg =
+      termScores["Second Term"].length > 0
+        ? termScores["Second Term"].reduce((a, b) => a + b, 0) /
+          termScores["Second Term"].length
+        : null;
+
+    const thirdTermAvg =
+      termScores["Third Term"].length > 0
+        ? termScores["Third Term"].reduce((a, b) => a + b, 0) /
+          termScores["Third Term"].length
+        : null;
+
+    // Cumulative Average of active term averages
+    const activeAverages = [firstTermAvg, secondTermAvg, thirdTermAvg].filter(
+      (avg) => avg !== null,
+    );
+    const cumulativeAverage =
+      activeAverages.length > 0
+        ? activeAverages.reduce((a, b) => a + b, 0) / activeAverages.length
+        : null;
+
+    // Compute subject positions
     const subjectPositions = await computeSubjectPositions({
       classId,
       termId,
     });
 
-    //Attendance Summary
+    // Attendance Summary
     const attendance = await prisma.attendanceSummary.findUnique({
       where: {
         studentId_termId: {
@@ -458,56 +428,10 @@ router.get("/student-result/:studentId", async (req, res) => {
           a.category.name === "Principal Comment",
       )?.score || "";
 
-    // function groupAssessments(records) {
-    //   return {
-    //     behaviour: records
-    //       .filter((x) => x.category.name === "Behaviour")
-    //       .map((x) => ({
-    //         name: x.name,
-    //         score: x.score,
-    //       })),
-
-    //     psychomotor: records
-    //       .filter((x) => x.category.name === "Psychomotor")
-    //       .map((x) => ({
-    //         name: x.name,
-    //         score: x.score,
-    //       })),
-
-    //     sports: records
-    //       .filter((x) => x.category.name === "Sports")
-    //       .map((x) => ({
-    //         name: x.name,
-    //         score: x.score,
-    //       })),
-
-    //     clubs: records
-    //       .filter((x) => x.category.name === "Clubs")
-    //       .map((x) => ({
-    //         name: x.name,
-    //         score: x.score,
-    //       })),
-
-    //     teacherComment: records
-    //       .filter((x) => x.category.name === "teacherComment")
-    //       .map((x) => ({
-    //         name: x.name,
-    //         score: x.score,
-    //       })),
-    //     principalComment: records
-    //       .filter((x) => x.category.name === "principalComment")
-    //       .map((x) => ({
-    //         name: x.name,
-    //         score: x.score,
-    //       })),
-    //   };
-    // }
-
-    // 3. Enrich subject results
+    // 4. Enrich subject results
     const enrichedResults = await Promise.all(
       results.map(async (r) => {
         const subjectRankList = subjectPositions[r.subjectId] || [];
-
         const studentRank = subjectRankList.find(
           (s) => s.studentId === studentId,
         );
@@ -528,14 +452,43 @@ router.get("/student-result/:studentId", async (req, res) => {
         const firstTermResult = previousResults.find(
           (x) => x.term.name === "First Term",
         );
-
         const secondTermResult = previousResults.find(
           (x) => x.term.name === "Second Term",
         );
 
-        const student = await prisma.student.findUnique({
-          where: { id: studentId },
-        });
+        // Determine correct term scores for the subject
+        const currentTermName = currentTerm.name;
+
+        const firstTermScore =
+          currentTermName === "First Term"
+            ? r.TotalScore
+            : (firstTermResult?.TotalScore ?? null);
+
+        const secondTermScore =
+          currentTermName === "Second Term"
+            ? r.TotalScore
+            : currentTermName === "Third Term"
+              ? (secondTermResult?.TotalScore ?? null)
+              : null;
+
+        const thirdTermScore =
+          currentTermName === "Third Term" ? r.TotalScore : null;
+
+        // Subject-level cumulative average across active terms
+        const subjectScores = [
+          firstTermScore,
+          secondTermScore,
+          thirdTermScore,
+        ].filter((val) => val !== null);
+        const subjectCumulativeAverage =
+          subjectScores.length > 0
+            ? Number(
+                (
+                  subjectScores.reduce((a, b) => a + b, 0) /
+                  subjectScores.length
+                ).toFixed(2),
+              )
+            : null;
 
         return {
           student: {
@@ -546,7 +499,6 @@ router.get("/student-result/:studentId", async (req, res) => {
             passportPhoto: student.passportPhoto,
             dateOfBirth: student.dateOfBirth,
           },
-
           attendance: {
             schoolOpened: attendanceData?.schoolOpened ?? 0,
             present: attendanceData?.present ?? 0,
@@ -554,42 +506,35 @@ router.get("/student-result/:studentId", async (req, res) => {
             absent: attendanceData?.absent ?? 0,
           },
           subject: r.subject.name,
-
           attendanceScore: r.attendanceScore ?? 0,
           assignmentScore: r.assignmentScore ?? 0,
           ca1Score: r.ca1Score ?? 0,
           ca2Score: r.ca2Score ?? 0,
-
           examScore: r.examScore ?? 0,
           TotalScore: r.TotalScore ?? 0,
 
-          firstTermScore: firstTermResult?.TotalScore ?? null,
-
-          secondTermScore: secondTermResult?.TotalScore ?? null,
+          firstTermScore,
+          secondTermScore,
+          thirdTermScore,
+          cumulativeAverage: subjectCumulativeAverage,
 
           grade: getGrade(r.TotalScore),
-
           subjectPosition: studentRank?.position ?? null,
-
           remark: getRemark(r.TotalScore),
         };
       }),
     );
 
-    //  4. Compute TOTAL + AVERAGE
+    // Compute current term TOTAL + AVERAGE
     const totalScore = results.reduce((sum, r) => sum + (r.TotalScore || 0), 0);
-
     const average = results.length > 0 ? totalScore / results.length : 0;
-
-    //  5. Final Grade
     const finalGrade = getGrade(average);
 
-    //  6. Overall Position (reuse earlier function)
+    // Overall Position
     const ranking = await computeStudentPosition({
       classId,
       termId,
     });
-
     const studentRank = ranking.find((s) => s.studentId === studentId);
 
     // Final response
@@ -604,12 +549,10 @@ router.get("/student-result/:studentId", async (req, res) => {
         class: student.class,
         dateOfBirth: student.dateOfBirth,
       },
-
       school,
       nextTermDateBegins: currentTerm.nextTermDateBegins
         ? new Date(currentTerm.nextTermDateBegins)
         : "",
-
       term: {
         id: currentTerm.id,
         name: currentTerm.name,
@@ -618,35 +561,41 @@ router.get("/student-result/:studentId", async (req, res) => {
           : "",
         termCloseDate: currentTerm.endDate ? new Date(currentTerm.endDate) : "",
       },
-
       session: currentTerm.session,
-
       classSize,
-
       attendance: attendanceData,
-
       assessments: {
         behaviour,
         psychomotor,
         sports,
         clubs,
       },
-
       comments: {
         teacher: teacherComment,
         principal: principalComment,
         sportMistress: sportMistressComment,
       },
-
       summary: {
         totalScore,
         average: Number(average.toFixed(2)),
         finalGrade,
         position: studentRank?.position ?? null,
-
         subjectsOffered: results.length,
-
         classSize,
+
+        // Term averages and session cumulative average
+        termAverages: {
+          firstTerm:
+            firstTermAvg !== null ? Number(firstTermAvg.toFixed(2)) : null,
+          secondTerm:
+            secondTermAvg !== null ? Number(secondTermAvg.toFixed(2)) : null,
+          thirdTerm:
+            thirdTermAvg !== null ? Number(thirdTermAvg.toFixed(2)) : null,
+          cumulative:
+            cumulativeAverage !== null
+              ? Number(cumulativeAverage.toFixed(2))
+              : null,
+        },
       },
       subjects: enrichedResults,
     });
@@ -657,18 +606,392 @@ router.get("/student-result/:studentId", async (req, res) => {
     });
   }
 });
-//  7. Final Response
-//     res.json({
-//       studentId,
+
+// router.get("/student-result/:studentId", async (req, res) => {
+//   const { studentId } = req.params;
+//   const { classId, termId } = req.query;
+
+//   try {
+//     const student = await prisma.student.findUnique({
+//       where: { id: studentId },
+//       include: {
+//         class: true,
+//       },
+//     });
+
+//     if (!student) {
+//       return res.status(404).json({
+//         error: "Student not found",
+//       });
+//     }
+
+//     const currentTerm = await prisma.term.findUnique({
+//       where: { id: termId },
+//       include: {
+//         session: true,
+//       },
+//     });
+
+//     //console.log("Current Term:", currentTerm);
+
+//     if (!currentTerm) {
+//       return res.status(404).json({
+//         error: "Term not found",
+//       });
+//     }
+
+//     const classSize = await prisma.student.count({
+//       where: {
+//         classId,
+//         isActive: true,
+//       },
+//     });
+
+//     const school = await prisma.school.findFirst();
+
+//     async function getPreviousTerms(termId) {
+//       const term = await prisma.term.findUnique({
+//         where: { id: termId },
+//         include: {
+//           session: {
+//             include: {
+//               terms: true,
+//             },
+//           },
+//         },
+//       });
+
+//       const orderedTerms = term.session.terms.sort((a, b) => {
+//         const order = {
+//           "First Term": 1,
+//           "Second Term": 2,
+//           "Third Term": 3,
+//         };
+
+//         return order[a.name] - order[b.name];
+//       });
+
+//       const currentIndex = orderedTerms.findIndex((t) => t.id === termId);
+
+//       return orderedTerms.slice(0, currentIndex);
+//     }
+
+//     const previousTerms = await getPreviousTerms(termId);
+
+//     if (!classId || !termId) {
+//       return res.status(400).json({
+//         error: "classId and termId are required",
+//       });
+//     }
+
+//     // 1. Fetch student subject results
+//     const results = await prisma.result.findMany({
+//       where: {
+//         studentId,
+//         termId,
+//         subject: {
+//           classId: student.classId,
+//         },
+//       },
+//       include: {
+//         subject: true,
+//       },
+//     });
+
+//     // if (!results.length) {
+//     //   return res.status(404).json({
+//     //     error: "No results found for this student",
+//     //   });
+//     // }
+
+//     // if (!results.length) {
+//     //   const results = await prisma.subject.findMany({
+//     //     where: classId ? { classId } : undefined,
+//     //     include: { class: true },
+//     //     orderBy: { name: "asc" },
+//     //   });
+//     //   // res.json(subjects);
+//     // return res.status(404).json({
+//     //   error: "No results found for student",
+//     // });
+
+//     // 2. Compute subject positions
+//     const subjectPositions = await computeSubjectPositions({
+//       classId,
 //       termId,
+//     });
+
+//     //Attendance Summary
+//     const attendance = await prisma.attendanceSummary.findUnique({
+//       where: {
+//         studentId_termId: {
+//           studentId,
+//           termId,
+//         },
+//       },
+//     });
+
+//     const attendanceData = attendance
+//       ? {
+//           schoolOpened: attendance.schoolOpened,
+//           present: attendance.present,
+//           punctual: attendance.punctual,
+//           absent: attendance.schoolOpened - attendance.present,
+//         }
+//       : null;
+
+//     const assessments = await prisma.assessment.findMany({
+//       where: {
+//         studentId,
+//         termId,
+//       },
+//       include: {
+//         category: true,
+//       },
+//     });
+
+//     const behaviour = assessments
+//       .filter((a) => a.category.type === "Behaviour")
+//       .map((a) => ({
+//         name: a.category.name,
+//         score: a.score,
+//         remark: a.remark,
+//       }));
+
+//     const psychomotor = assessments
+//       .filter((a) => a.category.type === "Psychomotor")
+//       .map((a) => ({
+//         name: a.category.name,
+//         score: a.score,
+//         remark: a.remark,
+//       }));
+
+//     const sports = assessments
+//       .filter((a) => a.category.type === "Sport")
+//       .map((a) => ({
+//         name: a.category.name,
+//         score: a.score,
+//         remark: a.remark,
+//       }));
+
+//     const clubs = assessments
+//       .filter((a) => a.category.type === "Club")
+//       .map((a) => ({
+//         name: a.category.name,
+//         score: a.score,
+//         remark: a.remark,
+//       }));
+
+//     const teacherComment =
+//       assessments.find(
+//         (a) =>
+//           a.category.type === "Comments" &&
+//           a.category.name === "Teacher Comment",
+//       )?.score || "";
+//     const sportMistressComment =
+//       assessments.find(
+//         (a) =>
+//           a.category.type === "Comments" &&
+//           a.category.name === "Sport Mistress Comment",
+//       )?.score || "";
+
+//     const principalComment =
+//       assessments.find(
+//         (a) =>
+//           a.category.type === "Comments" &&
+//           a.category.name === "Principal Comment",
+//       )?.score || "";
+
+//     // function groupAssessments(records) {
+//     //   return {
+//     //     behaviour: records
+//     //       .filter((x) => x.category.name === "Behaviour")
+//     //       .map((x) => ({
+//     //         name: x.name,
+//     //         score: x.score,
+//     //       })),
+
+//     //     psychomotor: records
+//     //       .filter((x) => x.category.name === "Psychomotor")
+//     //       .map((x) => ({
+//     //         name: x.name,
+//     //         score: x.score,
+//     //       })),
+
+//     //     sports: records
+//     //       .filter((x) => x.category.name === "Sports")
+//     //       .map((x) => ({
+//     //         name: x.name,
+//     //         score: x.score,
+//     //       })),
+
+//     //     clubs: records
+//     //       .filter((x) => x.category.name === "Clubs")
+//     //       .map((x) => ({
+//     //         name: x.name,
+//     //         score: x.score,
+//     //       })),
+
+//     //     teacherComment: records
+//     //       .filter((x) => x.category.name === "teacherComment")
+//     //       .map((x) => ({
+//     //         name: x.name,
+//     //         score: x.score,
+//     //       })),
+//     //     principalComment: records
+//     //       .filter((x) => x.category.name === "principalComment")
+//     //       .map((x) => ({
+//     //         name: x.name,
+//     //         score: x.score,
+//     //       })),
+//     //   };
+//     // }
+
+//     // 3. Enrich subject results
+//     const enrichedResults = await Promise.all(
+//       results.map(async (r) => {
+//         const subjectRankList = subjectPositions[r.subjectId] || [];
+
+//         const studentRank = subjectRankList.find(
+//           (s) => s.studentId === studentId,
+//         );
+
+//         const previousResults = await prisma.result.findMany({
+//           where: {
+//             studentId,
+//             subjectId: r.subjectId,
+//             termId: {
+//               in: previousTerms.map((t) => t.id),
+//             },
+//           },
+//           include: {
+//             term: true,
+//           },
+//         });
+
+//         const firstTermResult = previousResults.find(
+//           (x) => x.term.name === "First Term",
+//         );
+
+//         const secondTermResult = previousResults.find(
+//           (x) => x.term.name === "Second Term",
+//         );
+
+//         const student = await prisma.student.findUnique({
+//           where: { id: studentId },
+//         });
+
+//         return {
+//           student: {
+//             name: student.name,
+//             admissionNumber: student.admissionNumber,
+//             gender: student.gender,
+//             sportHouse: student.sportHouse,
+//             passportPhoto: student.passportPhoto,
+//             dateOfBirth: student.dateOfBirth,
+//           },
+
+//           attendance: {
+//             schoolOpened: attendanceData?.schoolOpened ?? 0,
+//             present: attendanceData?.present ?? 0,
+//             punctual: attendanceData?.punctual ?? 0,
+//             absent: attendanceData?.absent ?? 0,
+//           },
+//           subject: r.subject.name,
+
+//           attendanceScore: r.attendanceScore ?? 0,
+//           assignmentScore: r.assignmentScore ?? 0,
+//           ca1Score: r.ca1Score ?? 0,
+//           ca2Score: r.ca2Score ?? 0,
+
+//           examScore: r.examScore ?? 0,
+//           TotalScore: r.TotalScore ?? 0,
+
+//           firstTermScore: firstTermResult?.TotalScore ?? null,
+
+//           secondTermScore: secondTermResult?.TotalScore ?? null,
+
+//           grade: getGrade(r.TotalScore),
+
+//           subjectPosition: studentRank?.position ?? null,
+
+//           remark: getRemark(r.TotalScore),
+//         };
+//       }),
+//     );
+
+//     //  4. Compute TOTAL + AVERAGE
+//     const totalScore = results.reduce((sum, r) => sum + (r.TotalScore || 0), 0);
+
+//     const average = results.length > 0 ? totalScore / results.length : 0;
+
+//     //  5. Final Grade
+//     const finalGrade = getGrade(average);
+
+//     //  6. Overall Position (reuse earlier function)
+//     const ranking = await computeStudentPosition({
+//       classId,
+//       termId,
+//     });
+
+//     const studentRank = ranking.find((s) => s.studentId === studentId);
+
+//     // Final response
+//     res.json({
+//       student: {
+//         id: student.id,
+//         name: student.name,
+//         admissionNumber: student.admissionNumber,
+//         gender: student.gender,
+//         sportHouse: student.sportHouse,
+//         passportPhoto: student.passportPhoto,
+//         class: student.class,
+//         dateOfBirth: student.dateOfBirth,
+//       },
+
+//       school,
+//       nextTermDateBegins: currentTerm.nextTermDateBegins
+//         ? new Date(currentTerm.nextTermDateBegins)
+//         : "",
+
+//       term: {
+//         id: currentTerm.id,
+//         name: currentTerm.name,
+//         nextTermDateBegins: currentTerm.nextTermDateBegins
+//           ? new Date(currentTerm.nextTermDateBegins)
+//           : "",
+//         termCloseDate: currentTerm.endDate ? new Date(currentTerm.endDate) : "",
+//       },
+
+//       session: currentTerm.session,
+
+//       classSize,
+
+//       attendance: attendanceData,
+
+//       assessments: {
+//         behaviour,
+//         psychomotor,
+//         sports,
+//         clubs,
+//       },
+
+//       comments: {
+//         teacher: teacherComment,
+//         principal: principalComment,
+//         sportMistress: sportMistressComment,
+//       },
 
 //       summary: {
 //         totalScore,
 //         average: Number(average.toFixed(2)),
 //         finalGrade,
-//         position: studentRank ? studentRank.position : null,
-//       },
+//         position: studentRank?.position ?? null,
 
+//         subjectsOffered: results.length,
+
+//         classSize,
+//       },
 //       subjects: enrichedResults,
 //     });
 //   } catch (error) {

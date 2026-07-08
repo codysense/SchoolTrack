@@ -14,6 +14,7 @@ router.get("/school-info", async (_, res) => {
       motto: true,
       logoUrl: true,
       phone: true,
+      principalSignatureUrl: true,
 
       website: true,
     },
@@ -249,25 +250,473 @@ router.get("/me", async (req, res) => {
   });
 });
 
-// GET /api/portal/results/:studentId?termId=…
+router.get("/results/:studentId", async (req, res) => {
+  const { studentId } = req.params;
+  const { classId, termId } = req.query;
+
+  if (!termId) return res.status(400).json({ error: "termId is required" });
+
+  const student = await prisma.student.findUnique({
+    where: { id: studentId },
+    include: {
+      class: true,
+      payments: { where: { termId } },
+      optionalFeeAssigns: {
+        where: { termId },
+        include: { optionalFee: true, payments: true },
+      },
+    },
+  });
+  if (!student) return res.status(404).json({ error: "Student not found" });
+
+  const schoolPaid = student.payments.reduce((s, p) => s + p.amountPaid, 0);
+  const schoolFee = student.class.feeAmount;
+  const optExpected = student.optionalFeeAssigns.reduce(
+    (s, a) => s + a.optionalFee.amount,
+    0,
+  );
+  const optPaid = student.optionalFeeAssigns.reduce(
+    (s, a) => s + a.payments.reduce((sp, p) => sp + p.amountPaid, 0),
+    0,
+  );
+  const totalBalance = schoolFee + optExpected - (schoolPaid + optPaid);
+  const fullyPaid = totalBalance <= 0;
+
+  try {
+    // 1. Fetch current term and include all terms in this session
+    const currentTerm = await prisma.term.findUnique({
+      where: { id: termId },
+      include: {
+        session: {
+          include: {
+            terms: true,
+          },
+        },
+      },
+    });
+
+    if (!currentTerm) {
+      return res.status(404).json({
+        error: "Term not found",
+      });
+    }
+
+    const classSize = await prisma.student.count({
+      where: {
+        classId,
+        isActive: true,
+      },
+    });
+
+    const school = await prisma.school.findFirst();
+
+    // Helper to get previous terms
+    async function getPreviousTerms(termId) {
+      const orderedTerms = currentTerm.session.terms.sort((a, b) => {
+        const order = {
+          "First Term": 1,
+          "Second Term": 2,
+          "Third Term": 3,
+        };
+        return order[a.name] - order[b.name];
+      });
+
+      const currentIndex = orderedTerms.findIndex((t) => t.id === termId);
+      return orderedTerms.slice(0, currentIndex);
+    }
+
+    const previousTerms = await getPreviousTerms(termId);
+
+    if (!classId || !termId) {
+      return res.status(400).json({
+        error: "classId and termId are required",
+      });
+    }
+
+    // 2. Fetch student subject results for the current term
+    const results = await prisma.result.findMany({
+      where: {
+        studentId,
+        termId,
+        subject: {
+          classId: student.classId,
+        },
+      },
+      include: {
+        subject: true,
+      },
+    });
+
+    // 3. Fetch all session results to compute overall term averages
+    const sessionTermIds = currentTerm.session.terms.map((t) => t.id);
+    const allSessionResults = await prisma.result.findMany({
+      where: {
+        studentId,
+        termId: {
+          in: sessionTermIds,
+        },
+      },
+      include: {
+        term: true,
+      },
+    });
+
+    // Group results by term to compute overall averages
+    const termScores = {
+      "First Term": [],
+      "Second Term": [],
+      "Third Term": [],
+    };
+
+    allSessionResults.forEach((r) => {
+      if (termScores[r.term.name]) {
+        termScores[r.term.name].push(Number(r.TotalScore || 0));
+      }
+    });
+
+    const firstTermAvg =
+      termScores["First Term"].length > 0
+        ? termScores["First Term"].reduce((a, b) => a + b, 0) /
+          termScores["First Term"].length
+        : null;
+
+    const secondTermAvg =
+      termScores["Second Term"].length > 0
+        ? termScores["Second Term"].reduce((a, b) => a + b, 0) /
+          termScores["Second Term"].length
+        : null;
+
+    const thirdTermAvg =
+      termScores["Third Term"].length > 0
+        ? termScores["Third Term"].reduce((a, b) => a + b, 0) /
+          termScores["Third Term"].length
+        : null;
+
+    // Cumulative Average of active term averages
+    const activeAverages = [firstTermAvg, secondTermAvg, thirdTermAvg].filter(
+      (avg) => avg !== null,
+    );
+    const cumulativeAverage =
+      activeAverages.length > 0
+        ? activeAverages.reduce((a, b) => a + b, 0) / activeAverages.length
+        : null;
+
+    // Compute subject positions
+    const subjectPositions = await computeSubjectPositions({
+      classId,
+      termId,
+    });
+
+    // Attendance Summary
+    const attendance = await prisma.attendanceSummary.findUnique({
+      where: {
+        studentId_termId: {
+          studentId,
+          termId,
+        },
+      },
+    });
+
+    const attendanceData = attendance
+      ? {
+          schoolOpened: attendance.schoolOpened,
+          present: attendance.present,
+          punctual: attendance.punctual,
+          absent: attendance.schoolOpened - attendance.present,
+        }
+      : null;
+
+    const assessments = await prisma.assessment.findMany({
+      where: {
+        studentId,
+        termId,
+      },
+      include: {
+        category: true,
+      },
+    });
+
+    const behaviour = assessments
+      .filter((a) => a.category.type === "Behaviour")
+      .map((a) => ({
+        name: a.category.name,
+        score: a.score,
+        remark: a.remark,
+      }));
+
+    const psychomotor = assessments
+      .filter((a) => a.category.type === "Psychomotor")
+      .map((a) => ({
+        name: a.category.name,
+        score: a.score,
+        remark: a.remark,
+      }));
+
+    const sports = assessments
+      .filter((a) => a.category.type === "Sport")
+      .map((a) => ({
+        name: a.category.name,
+        score: a.score,
+        remark: a.remark,
+      }));
+
+    const clubs = assessments
+      .filter((a) => a.category.type === "Club")
+      .map((a) => ({
+        name: a.category.name,
+        score: a.score,
+        remark: a.remark,
+      }));
+
+    const teacherComment =
+      assessments.find(
+        (a) =>
+          a.category.type === "Comments" &&
+          a.category.name === "Teacher Comment",
+      )?.score || "";
+
+    const sportMistressComment =
+      assessments.find(
+        (a) =>
+          a.category.type === "Comments" &&
+          a.category.name === "Sport Mistress Comment",
+      )?.score || "";
+
+    const principalComment =
+      assessments.find(
+        (a) =>
+          a.category.type === "Comments" &&
+          a.category.name === "Principal Comment",
+      )?.score || "";
+
+    // 4. Enrich subject results
+    const enrichedResults = await Promise.all(
+      results.map(async (r) => {
+        const subjectRankList = subjectPositions[r.subjectId] || [];
+        const studentRank = subjectRankList.find(
+          (s) => s.studentId === studentId,
+        );
+
+        const previousResults = await prisma.result.findMany({
+          where: {
+            studentId,
+            subjectId: r.subjectId,
+            termId: {
+              in: previousTerms.map((t) => t.id),
+            },
+          },
+          include: {
+            term: true,
+          },
+        });
+
+        const firstTermResult = previousResults.find(
+          (x) => x.term.name === "First Term",
+        );
+        const secondTermResult = previousResults.find(
+          (x) => x.term.name === "Second Term",
+        );
+
+        // Determine correct term scores for the subject
+        const currentTermName = currentTerm.name;
+
+        const firstTermScore =
+          currentTermName === "First Term"
+            ? r.TotalScore
+            : (firstTermResult?.TotalScore ?? null);
+
+        const secondTermScore =
+          currentTermName === "Second Term"
+            ? r.TotalScore
+            : currentTermName === "Third Term"
+              ? (secondTermResult?.TotalScore ?? null)
+              : null;
+
+        const thirdTermScore =
+          currentTermName === "Third Term" ? r.TotalScore : null;
+
+        // Subject-level cumulative average across active terms
+        const subjectScores = [
+          firstTermScore,
+          secondTermScore,
+          thirdTermScore,
+        ].filter((val) => val !== null);
+        const subjectCumulativeAverage =
+          subjectScores.length > 0
+            ? Number(
+                (
+                  subjectScores.reduce((a, b) => a + b, 0) /
+                  subjectScores.length
+                ).toFixed(2),
+              )
+            : null;
+
+        const studentData = await prisma.student.findUnique({
+          where: { id: studentId },
+        });
+
+        return {
+          student: {
+            name: studentData.name,
+            admissionNumber: studentData.admissionNumber,
+            gender: studentData.gender,
+            sportHouse: studentData.sportHouse,
+            passportPhoto: studentData.passportPhoto,
+            dateOfBirth: studentData.dateOfBirth,
+          },
+          attendance: {
+            schoolOpened: attendanceData?.schoolOpened ?? 0,
+            present: attendanceData?.present ?? 0,
+            punctual: attendanceData?.punctual ?? 0,
+            absent: attendanceData?.absent ?? 0,
+          },
+          subject: r.subject.name,
+          attendanceScore: r.attendanceScore ?? 0,
+          assignmentScore: r.assignmentScore ?? 0,
+          ca1Score: r.ca1Score ?? 0,
+          ca2Score: r.ca2Score ?? 0,
+          examScore: r.examScore ?? 0,
+          TotalScore: r.TotalScore ?? 0,
+
+          firstTermScore,
+          secondTermScore,
+          thirdTermScore,
+          cumulativeAverage: subjectCumulativeAverage,
+
+          grade: getGrade(r.TotalScore),
+          subjectPosition: studentRank?.position ?? null,
+          remark: getRemark(r.TotalScore),
+        };
+      }),
+    );
+
+    // Compute current term TOTAL + AVERAGE
+    const totalScore = results.reduce((sum, r) => sum + (r.TotalScore || 0), 0);
+    const average = results.length > 0 ? totalScore / results.length : 0;
+    const finalGrade = getGrade(average);
+
+    // Overall Position
+    const ranking = await computeStudentPosition({
+      classId,
+      termId,
+    });
+    const studentRank = ranking.find((s) => s.studentId === studentId);
+
+    // 5. Final Response
+    res.json({
+      studentId: studentId,
+      termId,
+      fullyPaid,
+      totalBalance,
+      canPrint: fullyPaid,
+
+      student: {
+        id: student.id,
+        name: student.name,
+        admissionNumber: student.admissionNumber,
+        gender: student.gender,
+        sportHouse: student.sportHouse,
+        passportPhoto: student.passportPhoto,
+        class: student.class,
+        dateOfBirth: student.dateOfBirth,
+      },
+
+      school,
+
+      term: {
+        id: currentTerm.id,
+        name: currentTerm.name,
+        nextTermDateBegins: currentTerm.nextTermDateBegins
+          ? new Date(currentTerm.nextTermDateBegins)
+          : "",
+        termCloseDate: currentTerm.endDate ? new Date(currentTerm.endDate) : "",
+      },
+
+      session: currentTerm.session,
+      classSize,
+      attendance: attendanceData,
+      assessments: {
+        behaviour,
+        psychomotor,
+        sports,
+        clubs,
+      },
+      comments: {
+        teacher: teacherComment,
+        principal: principalComment,
+        sportMistress: sportMistressComment,
+      },
+      summary: {
+        totalScore,
+        average: Number(average.toFixed(2)),
+        finalGrade,
+        position: studentRank?.position ?? null,
+        subjectsOffered: results.length,
+        classSize,
+
+        // Term averages and session cumulative average
+        termAverages: {
+          firstTerm:
+            firstTermAvg !== null ? Number(firstTermAvg.toFixed(2)) : null,
+          secondTerm:
+            secondTermAvg !== null ? Number(secondTermAvg.toFixed(2)) : null,
+          thirdTerm:
+            thirdTermAvg !== null ? Number(thirdTermAvg.toFixed(2)) : null,
+          cumulative:
+            cumulativeAverage !== null
+              ? Number(cumulativeAverage.toFixed(2))
+              : null,
+        },
+      },
+      subjects: enrichedResults,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Failed to fetch student result",
+    });
+  }
+});
+
 // router.get("/results/:studentId", async (req, res) => {
 //   const { studentId } = req.params;
 //   const { classId, termId } = req.query;
 
-//   try {
-//     const student = await prisma.student.findUnique({
-//       where: { id: studentId },
-//       include: {
-//         class: true,
+//   if (!termId) return res.status(400).json({ error: "termId is required" });
+
+//   const student = await prisma.student.findUnique({
+//     where: { id: studentId },
+//     include: {
+//       class: true,
+//       payments: { where: { termId } },
+//       optionalFeeAssigns: {
+//         where: { termId },
+//         include: { optionalFee: true, payments: true },
 //       },
-//     });
+//     },
+//   });
+//   if (!student) return res.status(404).json({ error: "Student not found" });
 
-//     if (!student) {
-//       return res.status(404).json({
-//         error: "Student not found",
-//       });
-//     }
+//   const schoolPaid = student.payments.reduce((s, p) => s + p.amountPaid, 0);
+//   const schoolFee = student.class.feeAmount;
+//   const optExpected = student.optionalFeeAssigns.reduce(
+//     (s, a) => s + a.optionalFee.amount,
+//     0,
+//   );
+//   const optPaid = student.optionalFeeAssigns.reduce(
+//     (s, a) => s + a.payments.reduce((sp, p) => sp + p.amountPaid, 0),
+//     0,
+//   );
+//   const totalBalance = schoolFee + optExpected - (schoolPaid + optPaid);
+//   const fullyPaid = totalBalance <= 0;
 
+//   // const results = await prisma.result.findMany({
+//   //   where: { studentId: req.user.id, termId },
+//   //   include: { subject: true },
+//   //   orderBy: { subject: { name: 'asc' } }
+//   // })
+
+//   try {
 //     const currentTerm = await prisma.term.findUnique({
 //       where: { id: termId },
 //       include: {
@@ -338,23 +787,6 @@ router.get("/me", async (req, res) => {
 //         subject: true,
 //       },
 //     });
-
-//     // if (!results.length) {
-//     //   return res.status(404).json({
-//     //     error: "No results found for this student",
-//     //   });
-//     // }
-
-//     // if (!results.length) {
-//     //   const results = await prisma.subject.findMany({
-//     //     where: classId ? { classId } : undefined,
-//     //     include: { class: true },
-//     //     orderBy: { name: "asc" },
-//     //   });
-//     //   // res.json(subjects);
-//     // return res.status(404).json({
-//     //   error: "No results found for student",
-//     // });
 
 //     // 2. Compute subject positions
 //     const subjectPositions = await computeSubjectPositions({
@@ -429,6 +861,7 @@ router.get("/me", async (req, res) => {
 //           a.category.type === "Comments" &&
 //           a.category.name === "Teacher Comment",
 //       )?.score || "";
+
 //     const sportMistressComment =
 //       assessments.find(
 //         (a) =>
@@ -442,51 +875,6 @@ router.get("/me", async (req, res) => {
 //           a.category.type === "Comments" &&
 //           a.category.name === "Principal Comment",
 //       )?.score || "";
-
-//     // function groupAssessments(records) {
-//     //   return {
-//     //     behaviour: records
-//     //       .filter((x) => x.category.name === "Behaviour")
-//     //       .map((x) => ({
-//     //         name: x.name,
-//     //         score: x.score,
-//     //       })),
-
-//     //     psychomotor: records
-//     //       .filter((x) => x.category.name === "Psychomotor")
-//     //       .map((x) => ({
-//     //         name: x.name,
-//     //         score: x.score,
-//     //       })),
-
-//     //     sports: records
-//     //       .filter((x) => x.category.name === "Sports")
-//     //       .map((x) => ({
-//     //         name: x.name,
-//     //         score: x.score,
-//     //       })),
-
-//     //     clubs: records
-//     //       .filter((x) => x.category.name === "Clubs")
-//     //       .map((x) => ({
-//     //         name: x.name,
-//     //         score: x.score,
-//     //       })),
-
-//     //     teacherComment: records
-//     //       .filter((x) => x.category.name === "teacherComment")
-//     //       .map((x) => ({
-//     //         name: x.name,
-//     //         score: x.score,
-//     //       })),
-//     //     principalComment: records
-//     //       .filter((x) => x.category.name === "principalComment")
-//     //       .map((x) => ({
-//     //         name: x.name,
-//     //         score: x.score,
-//     //       })),
-//     //   };
-//     // }
 
 //     // 3. Enrich subject results
 //     const enrichedResults = await Promise.all(
@@ -577,8 +965,14 @@ router.get("/me", async (req, res) => {
 
 //     const studentRank = ranking.find((s) => s.studentId === studentId);
 
-//     // Final response
+//     //  7. Final Response
 //     res.json({
+//       studentId: studentId,
+//       termId,
+//       fullyPaid,
+//       totalBalance,
+//       canPrint: fullyPaid,
+
 //       student: {
 //         id: student.id,
 //         name: student.name,
@@ -591,9 +985,6 @@ router.get("/me", async (req, res) => {
 //       },
 
 //       school,
-//       nextTermDateBegins: currentTerm.nextTermDateBegins
-//         ? new Date(currentTerm.nextTermDateBegins)
-//         : "",
 
 //       term: {
 //         id: currentTerm.id,
@@ -634,6 +1025,8 @@ router.get("/me", async (req, res) => {
 //         classSize,
 //       },
 //       subjects: enrichedResults,
+
+//       // subjects: enrichedResults,
 //     });
 //   } catch (error) {
 //     console.error(error);
@@ -641,497 +1034,23 @@ router.get("/me", async (req, res) => {
 //       error: "Failed to fetch student result",
 //     });
 //   }
+
+//   // const scores  = results.map(r => r.score)
+//   // const total   = scores.reduce((a, b) => a + b, 0)
+//   // const average = scores.length ? total / scores.length : 0
+
+//   // res.json({
+//   //   fullyPaid,
+//   //   totalBalance,
+//   //   canPrint: fullyPaid,
+//   //   results: results.map(r => ({ ...r, grade: getGrade(r.score) })),
+//   //   summary: {
+//   //     total,
+//   //     average:      parseFloat(average.toFixed(2)),
+//   //     overallGrade: getGrade(average),
+//   //     count:        results.length
+//   //   }
+//   // })
 // });
-
-router.get("/results/:studentId", async (req, res) => {
-  const { studentId } = req.params;
-  const { classId, termId } = req.query;
-
-  if (!termId) return res.status(400).json({ error: "termId is required" });
-
-  const student = await prisma.student.findUnique({
-    where: { id: studentId },
-    include: {
-      class: true,
-      payments: { where: { termId } },
-      optionalFeeAssigns: {
-        where: { termId },
-        include: { optionalFee: true, payments: true },
-      },
-    },
-  });
-  if (!student) return res.status(404).json({ error: "Student not found" });
-
-  const schoolPaid = student.payments.reduce((s, p) => s + p.amountPaid, 0);
-  const schoolFee = student.class.feeAmount;
-  const optExpected = student.optionalFeeAssigns.reduce(
-    (s, a) => s + a.optionalFee.amount,
-    0,
-  );
-  const optPaid = student.optionalFeeAssigns.reduce(
-    (s, a) => s + a.payments.reduce((sp, p) => sp + p.amountPaid, 0),
-    0,
-  );
-  const totalBalance = schoolFee + optExpected - (schoolPaid + optPaid);
-  const fullyPaid = totalBalance <= 0;
-
-  // const results = await prisma.result.findMany({
-  //   where: { studentId: req.user.id, termId },
-  //   include: { subject: true },
-  //   orderBy: { subject: { name: 'asc' } }
-  // })
-
-  try {
-    const currentTerm = await prisma.term.findUnique({
-      where: { id: termId },
-      include: {
-        session: true,
-      },
-    });
-
-    if (!currentTerm) {
-      return res.status(404).json({
-        error: "Term not found",
-      });
-    }
-
-    const classSize = await prisma.student.count({
-      where: {
-        classId,
-        isActive: true,
-      },
-    });
-
-    const school = await prisma.school.findFirst();
-
-    async function getPreviousTerms(termId) {
-      const term = await prisma.term.findUnique({
-        where: { id: termId },
-        include: {
-          session: {
-            include: {
-              terms: true,
-            },
-          },
-        },
-      });
-
-      const orderedTerms = term.session.terms.sort((a, b) => {
-        const order = {
-          "First Term": 1,
-          "Second Term": 2,
-          "Third Term": 3,
-        };
-
-        return order[a.name] - order[b.name];
-      });
-
-      const currentIndex = orderedTerms.findIndex((t) => t.id === termId);
-
-      return orderedTerms.slice(0, currentIndex);
-    }
-
-    const previousTerms = await getPreviousTerms(termId);
-
-    if (!classId || !termId) {
-      return res.status(400).json({
-        error: "classId and termId are required",
-      });
-    }
-
-    // 1. Fetch student subject results
-    const results = await prisma.result.findMany({
-      where: {
-        studentId,
-        termId,
-        subject: {
-          classId: student.classId,
-        },
-      },
-      include: {
-        subject: true,
-      },
-    });
-
-    // if (!results.length) {
-    //   return res.status(404).json({
-    //     error: "No results found for this student",
-    //   });
-    // }
-
-    // if (!results.length) {
-    //   const results = await prisma.subject.findMany({
-    //     where: classId ? { classId } : undefined,
-    //     include: { class: true },
-    //     orderBy: { name: "asc" },
-    //   });
-    //   // res.json(subjects);
-    // return res.status(404).json({
-    //   error: "No results found for student",
-    // });
-
-    // 2. Compute subject positions
-    const subjectPositions = await computeSubjectPositions({
-      classId,
-      termId,
-    });
-
-    //Attendance Summary
-    const attendance = await prisma.attendanceSummary.findUnique({
-      where: {
-        studentId_termId: {
-          studentId,
-          termId,
-        },
-      },
-    });
-
-    const attendanceData = attendance
-      ? {
-          schoolOpened: attendance.schoolOpened,
-          present: attendance.present,
-          punctual: attendance.punctual,
-          absent: attendance.schoolOpened - attendance.present,
-        }
-      : null;
-
-    const assessments = await prisma.assessment.findMany({
-      where: {
-        studentId,
-        termId,
-      },
-      include: {
-        category: true,
-      },
-    });
-
-    const behaviour = assessments
-      .filter((a) => a.category.type === "Behaviour")
-      .map((a) => ({
-        name: a.category.name,
-        score: a.score,
-        remark: a.remark,
-      }));
-
-    const psychomotor = assessments
-      .filter((a) => a.category.type === "Psychomotor")
-      .map((a) => ({
-        name: a.category.name,
-        score: a.score,
-        remark: a.remark,
-      }));
-
-    const sports = assessments
-      .filter((a) => a.category.type === "Sport")
-      .map((a) => ({
-        name: a.category.name,
-        score: a.score,
-        remark: a.remark,
-      }));
-
-    const clubs = assessments
-      .filter((a) => a.category.type === "Club")
-      .map((a) => ({
-        name: a.category.name,
-        score: a.score,
-        remark: a.remark,
-      }));
-
-    const teacherComment =
-      assessments.find(
-        (a) =>
-          a.category.type === "Comments" &&
-          a.category.name === "Teacher Comment",
-      )?.score || "";
-
-    const sportMistressComment =
-      assessments.find(
-        (a) =>
-          a.category.type === "Comments" &&
-          a.category.name === "Sport Mistress Comment",
-      )?.score || "";
-
-    const principalComment =
-      assessments.find(
-        (a) =>
-          a.category.type === "Comments" &&
-          a.category.name === "Principal Comment",
-      )?.score || "";
-
-    // function groupAssessments(records) {
-    //   return {
-    //     behaviour: records
-    //       .filter((x) => x.category.name === "Behaviour")
-    //       .map((x) => ({
-    //         name: x.name,
-    //         score: x.score,
-    //       })),
-
-    //     psychomotor: records
-    //       .filter((x) => x.category.name === "Psychomotor")
-    //       .map((x) => ({
-    //         name: x.name,
-    //         score: x.score,
-    //       })),
-
-    //     sports: records
-    //       .filter((x) => x.category.name === "Sports")
-    //       .map((x) => ({
-    //         name: x.name,
-    //         score: x.score,
-    //       })),
-
-    //     clubs: records
-    //       .filter((x) => x.category.name === "Clubs")
-    //       .map((x) => ({
-    //         name: x.name,
-    //         score: x.score,
-    //       })),
-
-    //     teacherComment: records
-    //       .filter((x) => x.category.name === "teacherComment")
-    //       .map((x) => ({
-    //         name: x.name,
-    //         score: x.score,
-    //       })),
-    //     principalComment: records
-    //       .filter((x) => x.category.name === "principalComment")
-    //       .map((x) => ({
-    //         name: x.name,
-    //         score: x.score,
-    //       })),
-    //   };
-    // }
-
-    // 3. Enrich subject results
-    const enrichedResults = await Promise.all(
-      results.map(async (r) => {
-        const subjectRankList = subjectPositions[r.subjectId] || [];
-
-        const studentRank = subjectRankList.find(
-          (s) => s.studentId === studentId,
-        );
-
-        const previousResults = await prisma.result.findMany({
-          where: {
-            studentId,
-            subjectId: r.subjectId,
-            termId: {
-              in: previousTerms.map((t) => t.id),
-            },
-          },
-          include: {
-            term: true,
-          },
-        });
-
-        const firstTermResult = previousResults.find(
-          (x) => x.term.name === "First Term",
-        );
-
-        const secondTermResult = previousResults.find(
-          (x) => x.term.name === "Second Term",
-        );
-
-        const student = await prisma.student.findUnique({
-          where: { id: studentId },
-        });
-
-        return {
-          student: {
-            name: student.name,
-            admissionNumber: student.admissionNumber,
-            gender: student.gender,
-            sportHouse: student.sportHouse,
-            passportPhoto: student.passportPhoto,
-            dateOfBirth: student.dateOfBirth,
-          },
-
-          attendance: {
-            schoolOpened: attendanceData?.schoolOpened ?? 0,
-            present: attendanceData?.present ?? 0,
-            punctual: attendanceData?.punctual ?? 0,
-            absent: attendanceData?.absent ?? 0,
-          },
-          subject: r.subject.name,
-
-          attendanceScore: r.attendanceScore ?? 0,
-          assignmentScore: r.assignmentScore ?? 0,
-          ca1Score: r.ca1Score ?? 0,
-          ca2Score: r.ca2Score ?? 0,
-
-          examScore: r.examScore ?? 0,
-          TotalScore: r.TotalScore ?? 0,
-
-          firstTermScore: firstTermResult?.TotalScore ?? null,
-
-          secondTermScore: secondTermResult?.TotalScore ?? null,
-
-          grade: getGrade(r.TotalScore),
-
-          subjectPosition: studentRank?.position ?? null,
-
-          remark: getRemark(r.TotalScore),
-        };
-      }),
-    );
-
-    //  4. Compute TOTAL + AVERAGE
-    const totalScore = results.reduce((sum, r) => sum + (r.TotalScore || 0), 0);
-
-    const average = results.length > 0 ? totalScore / results.length : 0;
-
-    //  5. Final Grade
-    const finalGrade = getGrade(average);
-
-    //  6. Overall Position (reuse earlier function)
-    const ranking = await computeStudentPosition({
-      classId,
-      termId,
-    });
-
-    const studentRank = ranking.find((s) => s.studentId === studentId);
-
-    // // 1. Fetch student subject results
-    // const results = await prisma.result.findMany({
-    //   where: {
-    //     studentId: studentId,
-    //     termId,
-    //   },
-    //   include: {
-    //     subject: true,
-    //   },
-    // });
-
-    // // 2. Compute subject positions
-    // const subjectPositions = await computeSubjectPositions({
-    //   classId: student.classId,
-    //   termId,
-    // });
-
-    // // 3. Enrich subject results
-    // const enrichedResults = results.map((r) => {
-    //   const subjectRankList = subjectPositions[r.subjectId] || [];
-
-    //   const studentRank = subjectRankList.find(
-    //     (s) => s.studentId === studentId,
-    //   );
-
-    //   return {
-    //     subject: r.subject.name,
-    //     assignmentScore: r.assignmentScore,
-
-    //     testScore: r.testScore,
-    //     examScore: r.examScore,
-    //     TotalScore: r.TotalScore,
-    //     grade: getGrade(r.TotalScore),
-    //     subjectPosition: studentRank ? studentRank.position : null,
-    //     remark: getRemark(r.TotalScore),
-    //   };
-    // });
-
-    // //  4. Compute TOTAL + AVERAGE
-    // const totalScore = results.reduce((sum, r) => sum + r.TotalScore, 0);
-
-    // const average = results.length > 0 ? totalScore / results.length : 0;
-
-    // //  5. Final Grade
-    // const finalGrade = getGrade(average);
-
-    // //  6. Overall Position (reuse earlier function)
-    // const ranking = await computeStudentPosition({
-    //   classId: student.classId,
-    //   termId,
-    // });
-
-    // const studentRank = ranking.find((s) => s.studentId === studentId);
-
-    //  7. Final Response
-    res.json({
-      studentId: studentId,
-      termId,
-      fullyPaid,
-      totalBalance,
-      canPrint: fullyPaid,
-
-      student: {
-        id: student.id,
-        name: student.name,
-        admissionNumber: student.admissionNumber,
-        gender: student.gender,
-        sportHouse: student.sportHouse,
-        passportPhoto: student.passportPhoto,
-        class: student.class,
-        dateOfBirth: student.dateOfBirth,
-      },
-
-      school,
-
-      term: {
-        id: currentTerm.id,
-        name: currentTerm.name,
-        nextTermDateBegins: currentTerm.nextTermDateBegins
-          ? new Date(currentTerm.nextTermDateBegins)
-          : "",
-        termCloseDate: currentTerm.endDate ? new Date(currentTerm.endDate) : "",
-      },
-
-      session: currentTerm.session,
-
-      classSize,
-
-      attendance: attendanceData,
-
-      assessments: {
-        behaviour,
-        psychomotor,
-        sports,
-        clubs,
-      },
-
-      comments: {
-        teacher: teacherComment,
-        principal: principalComment,
-        sportMistress: sportMistressComment,
-      },
-
-      summary: {
-        totalScore,
-        average: Number(average.toFixed(2)),
-        finalGrade,
-        position: studentRank?.position ?? null,
-
-        subjectsOffered: results.length,
-
-        classSize,
-      },
-      subjects: enrichedResults,
-
-      // subjects: enrichedResults,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      error: "Failed to fetch student result",
-    });
-  }
-
-  // const scores  = results.map(r => r.score)
-  // const total   = scores.reduce((a, b) => a + b, 0)
-  // const average = scores.length ? total / scores.length : 0
-
-  // res.json({
-  //   fullyPaid,
-  //   totalBalance,
-  //   canPrint: fullyPaid,
-  //   results: results.map(r => ({ ...r, grade: getGrade(r.score) })),
-  //   summary: {
-  //     total,
-  //     average:      parseFloat(average.toFixed(2)),
-  //     overallGrade: getGrade(average),
-  //     count:        results.length
-  //   }
-  // })
-});
 
 export default router;
