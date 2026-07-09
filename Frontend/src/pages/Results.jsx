@@ -75,9 +75,9 @@ export function getOrdinal(n) {
   const s = ["th", "st", "nd", "rd"];
   const v = n % 100;
   const finalPosition = n + (s[(v - 20) % 10] || s[v] || s[0]);
-  // console.log("Final Position", finalPosition);
+  //console.log("Final Position", finalPosition);
 
-  return finalPosition.includes("1st", "2nd", "3rd") ? finalPosition : "Nil";
+  return ["1st", "2nd", "3rd"].includes(finalPosition) ? finalPosition : "Nil";
 }
 export function getOrdinalHijri(n) {
   if (!n) return "-";
@@ -923,6 +923,7 @@ align-items:flex-end;
 .signature-image{
 height:30px;
 object-fit:contain;
+padding-left:80px;
 }
 
 .signature-line{
