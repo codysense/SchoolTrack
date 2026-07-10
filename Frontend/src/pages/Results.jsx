@@ -158,6 +158,19 @@ export default function Results() {
     "",
   );
 
+  const classOrder = [
+    "preschool",
+    "preparatory class 1",
+    "preparatory class 2",
+    "preparatory class 3",
+    "primary 1",
+    "primary 2",
+    "primary 3",
+    "primary 4",
+    "primary 5",
+    "primary 6",
+  ];
+
   const getMediaUrl = (value) =>
     value?.startsWith("http") ? value : `${API_BASE}${value}`;
 
@@ -217,9 +230,9 @@ export default function Results() {
       );
 
       setPrinterReport(printReportData);
-      console.log("Print report data", printReportData);
+      //console.log("Print report data", printReportData);
 
-      console.log("Report data", data);
+      // console.log("Report data", data);
 
       setReport(data);
 
@@ -522,8 +535,8 @@ export default function Results() {
     );
     loadReport(selected.id, selectedTermId);
   };
-  console.log("Selected", selected);
-  console.log("Printer Report", printerReport);
+  // console.log("Selected", selected);
+  // console.log("Printer Report", printerReport);
 
   const classSection = [
     "preschool",
@@ -539,13 +552,20 @@ export default function Results() {
     const promotioninfo =
       printerReport.summary?.termAverages.cummulative <= 39
         ? "Advised to discuss with the school Management"
-        : "Promoted to the next Class";
+        : "Promoted";
 
-    const promotionRemark =
-      printerReport.student?.class?.className === "Primary 6" &&
-      printerReport.summary?.termAverages.cummulative >= 40
-        ? "Completed primary education and transited to JSS 1"
-        : promotioninfo;
+    const currentClass = printerReport.student?.class?.className.toLowerCase();
+    let promotionRemark = "";
+
+    if (promotioninfo === "Promoted" && currentClass !== "primary 6") {
+      //Determine current class index in the class order array and get the next class for promotion remark
+      const currentClassIndex = classOrder.indexOf(currentClass);
+      promotionRemark = `Promoted to ${classOrder[currentClassIndex + 1]}`;
+    } else if (promotioninfo === "Promoted" && currentClass === "primary 6") {
+      promotionRemark = "Completed primary education and transited to JSS 1";
+    } else {
+      promotionRemark = promotioninfo;
+    }
 
     // Principal comment based on average score
     let principalComment = "";

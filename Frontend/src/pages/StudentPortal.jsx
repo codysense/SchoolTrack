@@ -94,21 +94,42 @@ Thank you.
   const getMediaUrl = (value) =>
     value?.startsWith("http") ? value : `${API_BASE}${value}`;
 
+  const classOrder = [
+    "preschool",
+    "preparatory class 1",
+    "preparatory class 2",
+    "preparatory class 3",
+    "primary 1",
+    "primary 2",
+    "primary 3",
+    "primary 4",
+    "primary 5",
+    "primary 6",
+  ];
+
   const printResult = () => {
     if (!results || !activeTerm || !profile) return;
 
     const selectedTerm = activeTerm.termId;
     // console.log("Select Term", activeTerm);
+
     const promotioninfo =
       results.summary?.termAverages.cummulative <= 39
         ? "Advised to discuss with the school Management"
-        : "Promoted to the next Class";
+        : "Promoted";
 
-    const promotionRemark =
-      results.student?.class?.className === "Primary 6" &&
-      results.summary?.termAverages.cummulative >= 40
-        ? "Completed primary education and transited to JSS 1"
-        : promotioninfo;
+    const currentClass = results.student?.class?.className.toLowerCase();
+    let promotionRemark = "";
+
+    if (promotioninfo === "Promoted" && currentClass !== "primary 6") {
+      //Determine current class index in the class order array and get the next class for promotion remark
+      const currentClassIndex = classOrder.indexOf(currentClass);
+      promotionRemark = `Promoted to ${classOrder[currentClassIndex + 1]}`;
+    } else if (promotioninfo === "Promoted" && currentClass === "primary 6") {
+      promotionRemark = "Completed primary education and transited to JSS 1";
+    } else {
+      promotionRemark = promotioninfo;
+    }
 
     const watermarkHtml = school?.logoUrl
       ? `
@@ -982,6 +1003,7 @@ ${r.remark}
   .signature-image{
   height:30px;
   object-fit:contain;
+  padding-left:80px;
   }
   
   .signature-line{
