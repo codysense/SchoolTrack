@@ -3,71 +3,71 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
-const categories = [
-  // Behaviour
-  { name: "Punctuality", type: "Behaviour" },
-  { name: "Neatness", type: "Behaviour" },
-  { name: "Honesty", type: "Behaviour" },
-  { name: "Obedience", type: "Behaviour" },
-  { name: "Leadership", type: "Behaviour" },
+// const categories = [
+//   // Behaviour
+//   { name: "Punctuality", type: "Behaviour" },
+//   { name: "Neatness", type: "Behaviour" },
+//   { name: "Honesty", type: "Behaviour" },
+//   { name: "Obedience", type: "Behaviour" },
+//   { name: "Leadership", type: "Behaviour" },
 
-  //Sport
-  { name: "Ball Games", type: "Sport" },
-  { name: "Swimming", type: "Sport" },
-  { name: "Indoor Games", type: "Sport" },
-  { name: "Weight Lifting", type: "Sport" },
-  { name: "Throwing", type: "Sport" },
-  { name: "Jumping", type: "Sport" },
-  { name: "Combative Games", type: "Sport" },
-  { name: "Track and Field", type: "Sport" },
+//   //Sport
+//   { name: "Ball Games", type: "Sport" },
+//   { name: "Swimming", type: "Sport" },
+//   { name: "Indoor Games", type: "Sport" },
+//   { name: "Weight Lifting", type: "Sport" },
+//   { name: "Throwing", type: "Sport" },
+//   { name: "Jumping", type: "Sport" },
+//   { name: "Combative Games", type: "Sport" },
+//   { name: "Track and Field", type: "Sport" },
 
-  { name: "Debate Club", type: "Club" },
-  { name: "Press Club", type: "Club" },
-  { name: "Drama Club", type: "Club" },
-  { name: "Jet Club", type: "Club" },
+//   { name: "Debate Club", type: "Club" },
+//   { name: "Press Club", type: "Club" },
+//   { name: "Drama Club", type: "Club" },
+//   { name: "Jet Club", type: "Club" },
 
-  // Psychomotor
-  { name: "Handwriting", type: "Psychomotor" },
-  { name: "Creativity", type: "Psychomotor" },
-  { name: "Sportsmanship", type: "Psychomotor" },
-  { name: "Communication", type: "Psychomotor" },
+//   // Psychomotor
+//   { name: "Handwriting", type: "Psychomotor" },
+//   { name: "Creativity", type: "Psychomotor" },
+//   { name: "Sportsmanship", type: "Psychomotor" },
+//   { name: "Communication", type: "Psychomotor" },
 
-  // Comments
-  { name: "Teacher Comment", type: "Comments" },
-  { name: "Principal Comment", type: "Comments" },
-];
+//   // Comments
+//   { name: "Teacher Comment", type: "Comments" },
+//   { name: "Principal Comment", type: "Comments" },
+// ];
 
 async function main() {
   console.log("🌱 Seeding…");
 
-  //assessment categories
-  for (const category of categories) {
-    await prisma.assessmentCategory.upsert({
-      where: {
-        name_type: {
-          name: category.name,
-          type: category.type,
-        },
-      },
-      update: {},
-      create: category,
-    });
-  }
+  // //assessment categories
+  // for (const category of categories) {
+  //   await prisma.assessmentCategory.upsert({
+  //     where: {
+  //       name_type: {
+  //         name: category.name,
+  //         type: category.type,
+  //       },
+  //     },
+  //     update: {},
+  //     create: category,
+  //   });
+  // }
 
   //School;
-  await prisma.school.upsert({
-    where: { id: "markaz-taaliim" },
-    update: {},
-    create: {
-      id: "markaz-taaliim",
-      name: "The Learning Hub",
-      address:
-        "ADEKUNLE LAWAL STR, ILUPEJU 2, ZONE 2, ONWARD AREA, OSOGBO OSUN STATE",
-      phone: "+234 703 891 4429",
-      email: "markaztaaliim@gmail.com",
-      motto: "Learning for practice",
-    },
-  });
+  // await prisma.school.upsert({
+  //   where: { id: "markaz-taaliim" },
+  //   update: {},
+  //   create: {
+  //     id: "markaz-taaliim",
+  //     name: "The Learning Hub",
+  //     address:
+  //       "ADEKUNLE LAWAL STR, ILUPEJU 2, ZONE 2, ONWARD AREA, OSOGBO OSUN STATE",
+  //     phone: "+234 703 891 4429",
+  //     email: "markaztaaliim@gmail.com",
+  //     motto: "Learning for practice",
+  //   },
+  // });
 
   // Admin
   await prisma.user.upsert({
@@ -75,51 +75,51 @@ async function main() {
     update: {},
     create: {
       email: "admin@markaztaaliim.com",
-      password: await bcrypt.hash("admin123", 10),
+      password: await bcrypt.hash("oedemaje22", 10),
       name: "School Admin",
       role: "ADMIN",
     },
   });
 
   // Classes;
-  const [PreSchool, PreparatoryClass1, PreparatoryClass2, PreparatoryClass3] =
-    await Promise.all([
-      prisma.class.upsert({
-        where: { className: "PreSchool" },
-        update: {},
-        create: { className: "PreSchool", feeAmount: 45000 },
-      }),
-      prisma.class.upsert({
-        where: { className: "Preparatory Class 1" },
-        update: {},
-        create: { className: "Preparatory Class 1", feeAmount: 45000 },
-      }),
-      prisma.class.upsert({
-        where: { className: "Preparatory Class 2" },
-        update: {},
-        create: { className: "Preparatory Class 2", feeAmount: 55000 },
-      }),
-      prisma.class.upsert({
-        where: { className: "Preparatory Class 3" },
-        update: {},
-        create: { className: "Preparatory Class 3", feeAmount: 55000 },
-      }),
-    ]);
+  // const [PreSchool, PreparatoryClass1, PreparatoryClass2, PreparatoryClass3] =
+  //   await Promise.all([
+  //     prisma.class.upsert({
+  //       where: { className: "PreSchool" },
+  //       update: {},
+  //       create: { className: "PreSchool", feeAmount: 45000 },
+  //     }),
+  //     prisma.class.upsert({
+  //       where: { className: "Preparatory Class 1" },
+  //       update: {},
+  //       create: { className: "Preparatory Class 1", feeAmount: 45000 },
+  //     }),
+  //     prisma.class.upsert({
+  //       where: { className: "Preparatory Class 2" },
+  //       update: {},
+  //       create: { className: "Preparatory Class 2", feeAmount: 55000 },
+  //     }),
+  //     prisma.class.upsert({
+  //       where: { className: "Preparatory Class 3" },
+  //       update: {},
+  //       create: { className: "Preparatory Class 3", feeAmount: 55000 },
+  //     }),
+  //   ]);
 
   // Teacher
-  const teacherUser = await prisma.user.upsert({
-    where: { email: "teacher@markaztaaliim.com" },
-    update: {},
-    create: {
-      email: "teacher@markaztaaliim.com",
-      password: await bcrypt.hash("teacher123", 10),
-      name: "Mrs Adunola Bello",
-      role: "TEACHER",
-      teacher: {
-        create: { classId: PreSchool.id, subjectName: "Mathematics" },
-      },
-    },
-  });
+  // const teacherUser = await prisma.user.upsert({
+  //   where: { email: "teacher@markaztaaliim.com" },
+  //   update: {},
+  //   create: {
+  //     email: "teacher@markaztaaliim.com",
+  //     password: await bcrypt.hash("teacher123", 10),
+  //     name: "Mrs Adunola Bello",
+  //     role: "TEACHER",
+  //     teacher: {
+  //       create: { classId: PreSchool.id, subjectName: "Mathematics" },
+  //     },
+  //   },
+  // });
 
   // Subjects
   // for (const [cls, names] of [
@@ -328,7 +328,7 @@ async function main() {
 
   console.log("\n🎉 Done!");
   console.log("   Admin:   admin@school.g / admin123");
-  console.log("   Teacher: teacher@school.ng / teacher123");
+  // console.log("   Teacher: teacher@school.ng / teacher123");
   // console.log("   Student: SCH/2024/0001 + Abdullah");
 }
 

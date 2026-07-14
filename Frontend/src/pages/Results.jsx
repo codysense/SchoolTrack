@@ -27,12 +27,6 @@ function gradeColor(g) {
 export function formatHijrahDate(dateInput) {
   const date = new Date(dateInput);
 
-  console.log(
-    "Formatting Hijrah date for input:",
-    dateInput,
-    "Parsed date:",
-    date,
-  );
   // Gregorian parts
   const weekday = new Intl.DateTimeFormat("en-GB", {
     weekday: "long",
@@ -47,14 +41,11 @@ export function formatHijrahDate(dateInput) {
   const gregYear = date.getFullYear();
 
   // Hijri parts
-  const hijriFormatter = new Intl.DateTimeFormat(
-    "en-TN-u-ca-islamic-umalqura",
-    {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    },
-  );
+  const hijriFormatter = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
   const parts = hijriFormatter.formatToParts(date);
 
@@ -536,7 +527,7 @@ export default function Results() {
     loadReport(selected.id, selectedTermId);
   };
   // console.log("Selected", selected);
-  // console.log("Printer Report", printerReport);
+  console.log("Printer Report", printerReport);
 
   const classSection = [
     "preschool",
@@ -1128,6 +1119,8 @@ ${subjectRows}
 <div class="value">${printerReport.summary.average}%</div>
 </div>
 
+ 
+
 <div class="summary-card">
 <div class="label">Grade</div>
 <div class="value">${printerReport.summary.finalGrade}</div>
@@ -1212,7 +1205,13 @@ ${formatHijrahDate(printerReport.term.nextTermDateBegins?.split("T")[0]) || ""}
 <div>
       <strong> ${selectedTerm.name === "Third Term" ? promotionRemark : ""}</strong>
 </div>
-
+<div>
+<strong>${selectedTerm.name === "Third Term" ? "Cummulative Total:" : ""}</strong>
+${selectedTerm.name === "Third Term" ? printerReport.summary?.termAverages?.firstTerm + printerReport.summary?.termAverages?.secondTerm + printerReport.summary?.termAverages?.thirdTerm || 0 : ""}
+</div>
+<div>
+<strong>${selectedTerm.name === "Third Term" ? "Cummulative Average:" : ""}</strong>
+${selectedTerm.name === "Third Term" ? printerReport.summary?.termAverages?.cumulative || 0 : ""}
 </div>
 
 
