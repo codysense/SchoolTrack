@@ -314,6 +314,15 @@ router.get("/student-result/:studentId", async (req, res) => {
       }
     });
 
+    const firstTermTotal = termScores["First Term"].reduce((a, b) => a + b, 0);
+    const secondTermTotal = termScores["Second Term"].reduce(
+      (a, b) => a + b,
+      0,
+    );
+    const thirdTermTotal = termScores["Third Term"].reduce((a, b) => a + b, 0);
+
+    const cumulativeTotal = firstTermTotal + secondTermTotal + thirdTermTotal;
+
     const firstTermAvg =
       termScores["First Term"].length > 0
         ? termScores["First Term"].reduce((a, b) => a + b, 0) /
@@ -530,12 +539,27 @@ router.get("/student-result/:studentId", async (req, res) => {
     const average = results.length > 0 ? totalScore / results.length : 0;
     const finalGrade = getGrade(average);
 
-    // Overall Position
+    // Overall term Position
     const ranking = await computeStudentPosition({
       classId,
       termId,
     });
     const studentRank = ranking.find((s) => s.studentId === studentId);
+
+    //Overall session position
+    const sessionRanking = await computeStudentPosition({
+      classId,
+
+      termId: {
+        in: sessionTermIds,
+      },
+    });
+
+    console.log("Session Ranking:", sessionRanking);
+
+    const sessionStudentRank = sessionRanking.find(
+      (s) => s.studentId === studentId,
+    );
 
     // Final response
     res.json({
@@ -585,16 +609,26 @@ router.get("/student-result/:studentId", async (req, res) => {
 
         // Term averages and session cumulative average
         termAverages: {
-          firstTerm:
+          firstTermAvg:
             firstTermAvg !== null ? Number(firstTermAvg.toFixed(2)) : null,
-          secondTerm:
+          secondTermAvg:
             secondTermAvg !== null ? Number(secondTermAvg.toFixed(2)) : null,
-          thirdTerm:
+          thirdTermAvg:
             thirdTermAvg !== null ? Number(thirdTermAvg.toFixed(2)) : null,
-          cumulative:
+          cumulativeAverage:
             cumulativeAverage !== null
               ? Number(cumulativeAverage.toFixed(2))
               : null,
+        },
+        termTotals: {
+          firstTermTotal,
+          secondTermTotal,
+          thirdTermTotal,
+          cumulativeTotal:
+            cumulativeTotal !== null
+              ? Number(cumulativeTotal.toFixed(2))
+              : null,
+          position: sessionStudentRank?.position ?? null,
         },
       },
       subjects: enrichedResults,

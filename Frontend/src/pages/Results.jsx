@@ -887,7 +887,7 @@ background:#f8fafc;
 
 .summary{
 display:grid;
-grid-template-columns:repeat(6,1fr);
+grid-template-columns:repeat(8,1fr);
 gap:8px;
 margin-top:10px;
 margin-bottom:5px;
@@ -1128,7 +1128,7 @@ ${subjectRows}
 
 <div class="summary-card">
 <div class="label">Position</div>
-<div class="value">${getOrdinal(printerReport.summary.position)}</div>
+<div class="value">${selectedTerm?.name === "Third Term" ? getOrdinal(printerReport.summary.termTotals.position) : getOrdinal(printerReport.summary.position)}</div>
 </div>
 
 <div class="summary-card">
@@ -1141,6 +1141,15 @@ ${subjectRows}
 <div class="value">${printerReport.summary.classSize}</div>
 </div>
 
+<div class="summary-card">
+<div class="label">Cummulative Total</div>
+<div class="value">${selectedTerm?.name === "Third Term" ? printerReport.summary.termTotals.cumulativeTotal : "-"}</div>
+</div>
+
+<div class="summary-card">
+<div class="label">Cummulative Average</div>
+<div class="value">${selectedTerm?.name === "Third Term" ? Number(printerReport.summary.termAverages.cumulativeAverage?.toFixed(2)) + "%" : "-"}</div>
+</div>
 </div>
 
 <div class="section-title">
@@ -1205,14 +1214,7 @@ ${formatHijrahDate(printerReport.term.nextTermDateBegins?.split("T")[0]) || ""}
 <div>
       <strong> ${selectedTerm.name === "Third Term" ? promotionRemark : ""}</strong>
 </div>
-<div>
-<strong>${selectedTerm.name === "Third Term" ? "Cummulative Total:" : ""}</strong>
-${selectedTerm.name === "Third Term" ? printerReport.summary?.termAverages?.firstTerm + printerReport.summary?.termAverages?.secondTerm + printerReport.summary?.termAverages?.thirdTerm || 0 : ""}
-</div>
-<div>
-<strong>${selectedTerm.name === "Third Term" ? "Cummulative Average:" : ""}</strong>
-${selectedTerm.name === "Third Term" ? printerReport.summary?.termAverages?.cumulative || 0 : ""}
-</div>
+
 
 
 </div>

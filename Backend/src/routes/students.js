@@ -119,7 +119,7 @@ router.get("/", staffOnly, async (req, res) => {
     },
     orderBy: { name: "asc" },
   });
-  console.log("Fetched students:", students);
+  // console.log("Fetched students:", students);
   const data = students.map((s) => {
     const schoolPaid = s.payments.reduce((sum, p) => sum + p.amountPaid, 0);
     const optExpected = s.optionalFeeAssigns.reduce(
