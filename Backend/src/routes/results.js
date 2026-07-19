@@ -555,7 +555,7 @@ router.get("/student-result/:studentId", async (req, res) => {
       },
     });
 
-    console.log("Session Ranking:", sessionRanking);
+    //console.log("Session Ranking:", sessionRanking);
 
     const sessionStudentRank = sessionRanking.find(
       (s) => s.studentId === studentId,

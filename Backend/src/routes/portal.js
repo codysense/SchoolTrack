@@ -374,6 +374,15 @@ router.get("/results/:studentId", async (req, res) => {
       }
     });
 
+    const firstTermTotal = termScores["First Term"].reduce((a, b) => a + b, 0);
+    const secondTermTotal = termScores["Second Term"].reduce(
+      (a, b) => a + b,
+      0,
+    );
+    const thirdTermTotal = termScores["Third Term"].reduce((a, b) => a + b, 0);
+
+    const cumulativeTotal = firstTermTotal + secondTermTotal + thirdTermTotal;
+
     const firstTermAvg =
       termScores["First Term"].length > 0
         ? termScores["First Term"].reduce((a, b) => a + b, 0) /
@@ -602,6 +611,21 @@ router.get("/results/:studentId", async (req, res) => {
     });
     const studentRank = ranking.find((s) => s.studentId === studentId);
 
+    //Overall session position
+    const sessionRanking = await computeStudentPosition({
+      classId,
+
+      termId: {
+        in: sessionTermIds,
+      },
+    });
+
+    //console.log("Session Ranking:", sessionRanking);
+
+    const sessionStudentRank = sessionRanking.find(
+      (s) => s.studentId === studentId,
+    );
+
     // 5. Final Response
     res.json({
       studentId: studentId,
@@ -666,6 +690,16 @@ router.get("/results/:studentId", async (req, res) => {
             cumulativeAverage !== null
               ? Number(cumulativeAverage.toFixed(2))
               : null,
+        },
+        termTotals: {
+          firstTermTotal,
+          secondTermTotal,
+          thirdTermTotal,
+          cumulativeTotal:
+            cumulativeTotal !== null
+              ? Number(cumulativeTotal.toFixed(2))
+              : null,
+          position: sessionStudentRank?.position ?? null,
         },
       },
       subjects: enrichedResults,

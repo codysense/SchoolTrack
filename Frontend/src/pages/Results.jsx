@@ -223,10 +223,9 @@ export default function Results() {
       setPrinterReport(printReportData);
       //console.log("Print report data", printReportData);
 
-      // console.log("Report data", data);
-
       setReport(data);
 
+      //console.log("Report data", data);
       setAttendance(
         data.attendance || {
           schoolOpened: "",
@@ -441,7 +440,7 @@ export default function Results() {
     if (isTeacher && s.classId !== user?.teacher?.classId) return;
 
     setSelected(s);
-    console.log("Selected student", s);
+    //console.log("Selected student", s);
     setReport(null);
     if (selectedTermId) loadReport(s.id, selectedTermId, s.classId);
   };
@@ -527,7 +526,7 @@ export default function Results() {
     loadReport(selected.id, selectedTermId);
   };
   // console.log("Selected", selected);
-  console.log("Printer Report", printerReport);
+  //console.log("Printer Report", printerReport);
 
   const classSection = [
     "preschool",

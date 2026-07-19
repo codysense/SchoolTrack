@@ -41,7 +41,7 @@ export default function StudentPortal() {
       .finally(() => setLoading(false));
   }, []);
 
-  console.log({ Profile: profile, School: school });
+  //console.log({ Profile: profile, School: school });
 
   const contactSchool = () => {
     const phone = school?.phone?.replace(/\D/g, ""); // Remove non-digit characters
@@ -956,7 +956,7 @@ ${r.remark}
   
   .summary{
   display:grid;
-  grid-template-columns:repeat(6,1fr);
+  grid-template-columns:repeat(8,1fr);
   gap:8px;
   margin-top:10px;
   margin-bottom:5px;
@@ -1200,7 +1200,7 @@ ${r.remark}
   
   <div class="summary-card">
   <div class="label">Position</div>
-  <div class="value">${getOrdinal(results.summary.position)}</div>
+  <div class="value">${activeTerm?.termName === "Third Term" ? getOrdinal(results.summary?.termTotals.position) : getOrdinal(results.summary.position)}</div>
   </div>
   
   <div class="summary-card">
@@ -1212,6 +1212,17 @@ ${r.remark}
   <div class="label">No in Class</div>
   <div class="value">${results.summary.classSize}</div>
   </div>
+
+<div class="summary-card">
+<div class="label">Cummulative Total</div>
+<div class="value">${activeTerm?.termName === "Third Term" ? results.summary.termTotals.cumulativeTotal : "-"}</div>
+</div>
+
+<div class="summary-card">
+<div class="label">Cummulative Average</div>
+<div class="value">${activeTerm?.termName === "Third Term" ? Number(results.summary.termAverages.cumulative?.toFixed(2)) + "%" : "-"}</div>
+</div>
+
   
   </div>
   
