@@ -85,7 +85,7 @@ Thank you.
     }
   };
 
-  console.log("Active term", activeTerm);
+  //console.log("Active term", activeTerm);
 
   const API_BASE = (import.meta.env.VITE_API_URL || "/api/V1").replace(
     "/api/V1",
@@ -112,6 +112,21 @@ Thank you.
 
     const selectedTerm = activeTerm.termId;
     // console.log("Select Term", activeTerm);
+
+    // Principal comment based on average score
+    let principalComment = "";
+    const averageScore = results.summary?.average || 0;
+
+    if (averageScore >= 80) {
+      principalComment = "This is an excellent result. Keep it up!";
+    } else if (averageScore >= 60) {
+      principalComment =
+        "This is a very good result. Make it excellent next term.";
+    } else if (averageScore >= 40) {
+      principalComment = "This is a good result. Make it better next term.";
+    } else if (averageScore >= 0) {
+      principalComment = "This is a fair performance. Work harder next term.";
+    }
 
     const promotioninfo =
       results.summary?.termAverages.cummulative <= 39
@@ -1253,7 +1268,7 @@ ${r.remark}
       <table style="width: 100%;">
          <tr > <td><b>Sports Mistress:</b></td> <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.sportMistress || ""}</td> </tr>
          <tr> <td><b>Class Teacher:</b></td>  <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.teacher || ""}</td> </tr>
-         <tr> <td><b>Head Teacher:</b></td>  <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${comments.principal || ""}</td> </tr>
+         <tr> <td><b>Head Teacher:</b></td>  <td style="font-family: 'Lucida Calligraphy', 'Apple Chancery', 'URW Chancery L', cursive;">${principalComment || ""}</td> </tr>
       </table>
   </div>
   
