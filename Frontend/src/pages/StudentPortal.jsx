@@ -198,31 +198,31 @@ Thank you.
 <tr>
 <td>${r.subject}</td>
 
-<td>${r.attendanceScore ?? 0}</td>
+<td style="text-align:center;">${r.attendanceScore ?? 0}</td>
 
-<td>${r.assignmentScore ?? 0}</td>
+<td style="text-align:center;">${r.assignmentScore ?? 0}</td>
 
-${classSection.toLowerCase() === "primary section" ? `<td>${r.ca1Score ?? 0}</td>` : ""}
+${classSection.toLowerCase() === "primary section" ? `<td style="text-align:center;">${r.ca1Score ?? 0}</td>` : ""}
 
-<td>${r.ca2Score ?? 0}</td>
+<td style="text-align:center;">${r.ca2Score ?? 0}</td>
 
-<td>${r.examScore ?? 0}</td>
+<td style="text-align:center;">${r.examScore ?? 0}</td>
 
-<td style="font-weight:700">
+<td style="font-weight:700; text-align:center;">
 ${r.TotalScore ?? 0}
 </td>
 
-${activeTerm?.termName === "Second Term" || activeTerm?.termName === "Third Term" ? `<td>${r.firstTermScore ?? "-"}</td>` : ""}
+${activeTerm?.termName === "Second Term" || activeTerm?.termName === "Third Term" ? `<td style="text-align:center;">${r.firstTermScore ?? "-"}</td>` : ""}
 
-${activeTerm?.termName === "Third Term" ? `<td>${r.secondTermScore ?? "-"}</td>` : ""}
+${activeTerm?.termName === "Third Term" ? `<td style="text-align:center;">${r.secondTermScore ?? "-"}</td>` : ""}
 
-<td>
+<td style="text-align:center;">
 <span class="grade grade-${r.grade}">
 ${r.grade}
 </span>
 </td>
 
-<td>
+<td style="text-align:center;">
 ${getOrdinal(r.subjectPosition)}
 </td>
 
