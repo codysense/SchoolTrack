@@ -1154,9 +1154,8 @@ ${r.remark}
   <div class="section-title">
   2. PERFORMANCE IN SUBJECTS
   </div>
-  
   <table>
-  
+ 
   <thead>
   
   <tr>
