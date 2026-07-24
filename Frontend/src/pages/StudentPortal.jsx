@@ -1320,6 +1320,7 @@ ${r.remark}
   };
 
   const fmt = (n) => `₦${Number(n || 0).toLocaleString()}`;
+  const isMobile = window.innerWidth < 768;
 
   if (loading)
     return (
@@ -1816,139 +1817,148 @@ ${r.remark}
                                 </button>
                               </div>
 
-                              {/* TABLE */}
-                              <table
+                              <div
                                 style={{
+                                  overflowX: "auto",
                                   width: "100%",
-                                  borderCollapse: "collapse",
-                                  fontSize: 14,
                                 }}
                               >
-                                <thead>
-                                  <tr style={{ background: "#f9fafb" }}>
-                                    {[
-                                      "Subject",
-                                      "Assignment",
-                                      "Attendance",
-                                      "ca1Score",
-                                      "ca2Score",
-                                      "Exam Score",
-                                      "Total Score",
-                                      "Position",
-                                      "Grade",
-                                      "Remark",
-                                    ].map((h) => (
-                                      <th
-                                        key={h}
-                                        style={{
-                                          padding: "9px 14px",
-                                          textAlign: "left",
-                                          fontSize: 13,
-                                          fontWeight: 600,
-                                          color: "#374151",
-                                        }}
-                                      >
-                                        {h}
-                                      </th>
-                                    ))}
-                                  </tr>
-                                </thead>
-
-                                <tbody>
-                                  {results.subjects.map((r) => (
-                                    <tr
-                                      key={r.id}
-                                      style={{ borderTop: "1px solid #f3f4f6" }}
-                                    >
-                                      <td style={{ padding: "9px 14px" }}>
-                                        {r.subject}
-                                      </td>
-
-                                      <td
-                                        style={{
-                                          padding: "9px 14px",
-                                          fontWeight: 600,
-                                        }}
-                                      >
-                                        {r.assignmentScore}
-                                      </td>
-
-                                      <td
-                                        style={{
-                                          padding: "9px 14px",
-                                          fontWeight: 600,
-                                        }}
-                                      >
-                                        {r.attendanceScore}
-                                      </td>
-
-                                      <td
-                                        style={{
-                                          padding: "9px 14px",
-                                          fontWeight: 600,
-                                        }}
-                                      >
-                                        {r.ca1Score}
-                                      </td>
-                                      <td
-                                        style={{
-                                          padding: "9px 14px",
-                                          fontWeight: 600,
-                                        }}
-                                      >
-                                        {r.ca2Score}
-                                      </td>
-                                      <td
-                                        style={{
-                                          padding: "9px 14px",
-                                          fontWeight: 600,
-                                        }}
-                                      >
-                                        {r.examScore}
-                                      </td>
-                                      <td
-                                        style={{
-                                          padding: "9px 14px",
-                                          fontWeight: 600,
-                                        }}
-                                      >
-                                        {r.TotalScore}
-                                      </td>
-                                      <td
-                                        style={{
-                                          padding: "9px 14px",
-                                          fontWeight: 600,
-                                        }}
-                                      >
-                                        {getOrdinal(r.subjectPosition)}
-                                      </td>
-
-                                      <td style={{ padding: "9px 14px" }}>
-                                        <span
+                                {/* TABLE */}
+                                <table
+                                  style={{
+                                    width: isMobile ? "85%vw" : "100%",
+                                    borderCollapse: "separate",
+                                    borderSpacing: 0,
+                                    fontSize: 14,
+                                  }}
+                                >
+                                  <thead>
+                                    <tr style={{ background: "#f9fafb" }}>
+                                      {[
+                                        "Subject",
+                                        "Assignment",
+                                        "Attendance",
+                                        "ca1Score",
+                                        "ca2Score",
+                                        "Exam Score",
+                                        "Total Score",
+                                        "Position",
+                                        "Grade",
+                                        "Remark",
+                                      ].map((h) => (
+                                        <th
+                                          key={h}
                                           style={{
-                                            color: gradeHex(r.grade),
-                                            fontWeight: 700,
-                                            fontSize: 15,
+                                            padding: "9px 14px",
+                                            textAlign: "left",
+                                            fontSize: 13,
+                                            fontWeight: 600,
+                                            color: "#374151",
                                           }}
                                         >
-                                          {r.grade}
-                                        </span>
-                                      </td>
+                                          {h}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                  </thead>
 
-                                      <td
+                                  <tbody>
+                                    {results.subjects.map((r) => (
+                                      <tr
+                                        key={r.id}
                                         style={{
-                                          padding: "9px 14px",
-                                          color: "#6b7280",
-                                          fontSize: 13,
+                                          borderTop: "1px solid #f3f4f6",
                                         }}
                                       >
-                                        {r.remark}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                                        <td style={{ padding: "9px 14px" }}>
+                                          {r.subject}
+                                        </td>
 
+                                        <td
+                                          style={{
+                                            padding: "9px 14px",
+                                            fontWeight: 600,
+                                          }}
+                                        >
+                                          {r.assignmentScore}
+                                        </td>
+
+                                        <td
+                                          style={{
+                                            padding: "9px 14px",
+                                            fontWeight: 600,
+                                          }}
+                                        >
+                                          {r.attendanceScore}
+                                        </td>
+
+                                        <td
+                                          style={{
+                                            padding: "9px 14px",
+                                            fontWeight: 600,
+                                          }}
+                                        >
+                                          {r.ca1Score}
+                                        </td>
+                                        <td
+                                          style={{
+                                            padding: "9px 14px",
+                                            fontWeight: 600,
+                                          }}
+                                        >
+                                          {r.ca2Score}
+                                        </td>
+                                        <td
+                                          style={{
+                                            padding: "9px 14px",
+                                            fontWeight: 600,
+                                          }}
+                                        >
+                                          {r.examScore}
+                                        </td>
+                                        <td
+                                          style={{
+                                            padding: "9px 14px",
+                                            fontWeight: 600,
+                                          }}
+                                        >
+                                          {r.TotalScore}
+                                        </td>
+                                        <td
+                                          style={{
+                                            padding: "9px 14px",
+                                            fontWeight: 600,
+                                          }}
+                                        >
+                                          {getOrdinal(r.subjectPosition)}
+                                        </td>
+
+                                        <td style={{ padding: "9px 14px" }}>
+                                          <span
+                                            style={{
+                                              color: gradeHex(r.grade),
+                                              fontWeight: 700,
+                                              fontSize: 15,
+                                            }}
+                                          >
+                                            {r.grade}
+                                          </span>
+                                        </td>
+
+                                        <td
+                                          style={{
+                                            padding: "9px 14px",
+                                            color: "#6b7280",
+                                            fontSize: 13,
+                                          }}
+                                        >
+                                          {r.remark}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
                               {/* SUMMARY */}
                               <div
                                 style={{
