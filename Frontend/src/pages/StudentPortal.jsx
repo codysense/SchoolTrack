@@ -178,6 +178,8 @@ Thank you.
       ? "Nursery Section"
       : "Primary Section";
 
+    //console.log("Class Section:", classSection);
+
     const renderAssessmentGrid = (items) =>
       items
         .map(
@@ -200,7 +202,7 @@ Thank you.
 
 <td>${r.assignmentScore ?? 0}</td>
 
-${classSection.toLowerCase() === "primary section" ? <td>${r.ca1Score ?? 0}</td> : ""}
+${classSection.toLowerCase() === "primary section" ? `<td>${r.ca1Score ?? 0}</td>` : ""}
 
 <td>${r.ca2Score ?? 0}</td>
 
@@ -1155,22 +1157,14 @@ ${r.remark}
   2. PERFORMANCE IN SUBJECTS
   </div>
   <table>
- 
   <thead>
-  
   <tr>
-  
   <th>Subjects</th>
-  
   <th>Attendance</th>
-  
   <th>Assignment</th>
-  
   ${classSection.toLowerCase() === "primary section" ? "<th>CA1</th>" : ""}
-
   ${classSection.toLowerCase() === "primary section" ? "<th>CA2</th>" : "<th>CA</th>"}
   <th>Exam</th>
-  
   <th>Total</th>
   
   ${activeTerm?.termName === "Second Term" || activeTerm?.termName === "Third Term" ? "<th>1st Term</th>" : ""}
@@ -1835,6 +1829,7 @@ ${r.remark}
                                     {[
                                       "Subject",
                                       "Assignment",
+                                      "Attendance",
                                       "ca1Score",
                                       "ca2Score",
                                       "Exam Score",
@@ -1910,6 +1905,14 @@ ${r.remark}
                                         }}
                                       >
                                         {r.examScore}
+                                      </td>
+                                      <td
+                                        style={{
+                                          padding: "9px 14px",
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        {r.TotalScore}
                                       </td>
                                       <td
                                         style={{
