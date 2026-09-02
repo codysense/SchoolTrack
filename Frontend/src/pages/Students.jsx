@@ -619,40 +619,6 @@ export default function Students() {
     }
   };
 
-  // const handlePaymentHistory = (e, s) => {
-  //   e.stopPropagation();
-  //   setStudentId(s.id);
-
-  //   Promise.all([
-  //     api(`/students/${s.id}/payments?termId=${filterTermId}`),
-  //     api("/classes"),
-  //   ])
-  //     .then(([p, c]) => {
-  //       setPayments(p);
-  //       setClasses(c);
-  //       console.log("Payment history for student ID", p);
-  //     })
-  //     .catch((e) => alert(e.message));
-
-  //   // navigate(`/students/${s.id}/payments`);
-  //   // alert(
-  //   //   `Payment history for ${s.name}:\n\n` +
-  //   //     payments
-  //   //       .map(
-  //   //         (pay) =>
-  //   //           `${new Date(pay.date).toLocaleDateString()} - ${pay.amountPaid} (${pay.term.session.name} - ${pay.term.name})`,
-  //   //       )
-  //   //       .join("\n") +
-  //   //     `\n\nClasses: ${c
-  //   //       .filter((cl) => cl.id === s.classId)
-  //   //       .map((cl) => cl.className)
-  //   //       .join(", ")}`,
-  //   // );
-
-  //   // You can also navigate to a dedicated payment history page if preferred
-  //   // navigate(`/students/${s.id}/payments`);
-  // };
-
   const payload = new FormData();
 
   Object.entries(form).forEach(([key, value]) => {

@@ -66,6 +66,471 @@ Thank you.
     );
   };
 
+  const handleCurrentTermBill = async (e, customTerm) => {
+    if (e) e.stopPropagation();
+
+    try {
+      const targetTermObj =
+        customTerm ||
+        profile?.terms?.find((t) => t.isCurrent) ||
+        activeTerm ||
+        profile?.terms?.[0];
+      const targetTermId = targetTermObj?.termId || profile?.currentTermId;
+
+      const [history, schoolInfo] = await Promise.all([
+        api(
+          targetTermId
+            ? `/portal/payments?termId=${targetTermId}`
+            : "/portal/payments",
+        ),
+        school
+          ? Promise.resolve(school)
+          : api("/portal/school-info").catch(() => null),
+      ]);
+
+      const schoolPayments = history.payments || [];
+      const optionalPayments = history.optPayments || [];
+
+      const totalSchoolFeesPaid = schoolPayments.reduce(
+        (sum, p) => sum + Number(p.amountPaid || 0),
+        0,
+      );
+
+      const expectedSchoolFees =
+        targetTermObj?.schoolFee ??
+        history.classFee ??
+        profile?.feeAmount ??
+        0;
+
+      const schoolFeeBalance = expectedSchoolFees - totalSchoolFeesPaid;
+      const optionalFeeExpected = history.optFeeExpected || 0;
+      const optionalFeePaid = history.optFeePaid || 0;
+      const optionalFeeBalance = history.optFeeBalance || 0;
+      const totalPaid = totalSchoolFeesPaid + optionalFeePaid;
+      const grandBalance = schoolFeeBalance + optionalFeeBalance;
+
+      const schoolFeeRows = schoolPayments.length
+        ? schoolPayments
+            .map(
+              (p, index) => `
+          <tr>
+            <td>${index + 1}</td>
+            <td>${new Date(p.date).toLocaleDateString("en-GB")}</td>
+            <td>${p.paymentMethod || "-"}</td>
+            <td style="text-align:left">
+              ₦${Number(p.amountPaid).toLocaleString()}
+            </td>
+            <td>${p.note || "-"}</td>
+          </tr>
+        `,
+            )
+            .join("")
+        : `
+        <tr>
+          <td colspan="5" style="text-align:center;color:#6b7280">
+            No school fee payment record found
+          </td>
+        </tr>
+      `;
+
+      const optionalFeeRows = optionalPayments.length
+        ? optionalPayments
+            .map(
+              (p, index) => `
+          <tr>
+            <td>${index + 1}</td>
+            <td>
+              ${p.optionalFeeAssign?.optionalFee?.name || "-"}
+            </td>
+            <td style="text-align:left">
+              ₦${Number(
+                p.optionalFeeAssign?.optionalFee?.amount || 0,
+              ).toLocaleString()}
+            </td>
+            <td>${new Date(p.date).toLocaleDateString("en-GB")}</td>
+            <td>${p.paymentMethod || "-"}</td>
+            <td style="text-align:left">
+              ₦${Number(p.amountPaid).toLocaleString()}
+            </td>
+          </tr>
+        `,
+            )
+            .join("")
+        : `
+        <tr>
+          <td colspan="6" style="text-align:center;color:#6b7280">
+            No optional fee payment record found
+          </td>
+        </tr>
+      `;
+
+      const currentSchool = schoolInfo || school;
+      const termLabel = history.term
+        ? `${history.term.sessionName} — ${history.term.name}`
+        : targetTermObj
+          ? `${targetTermObj.sessionName} — ${targetTermObj.termName}`
+          : "Current Term";
+
+      const logoHtml = currentSchool?.logoUrl
+        ? `<img src="${getMediaUrl(currentSchool.logoUrl)}" style="height:64px;object-fit:contain;margin-bottom:6px"/>`
+        : `<div style="font-size:48px;">🏫</div>`;
+
+      const w = window.open("", "_blank");
+
+      w.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Statement of Account</title>
+
+        <style>
+          *{
+            box-sizing:border-box;
+            margin:0;
+            padding:0;
+          }
+
+          body{
+            font-family:'Roboto','Open Sans',sans-serif;
+            max-width:950px;
+            margin:30px auto;
+            padding:20px;
+            color:#1a1f36;
+          }
+
+          .header{
+            text-align:center;
+            border-bottom:3px double #111827;
+            padding-bottom:18px;
+            margin-bottom:25px;
+          }
+
+          .header h1{
+            font-size:24px;
+            margin:6px 0;
+          }
+
+          .sub{
+            color:#6b7280;
+            font-size:13px;
+            margin:2px 0;
+          }
+
+          .title{
+            margin-top:12px;
+            font-size:17px;
+            font-weight:bold;
+            text-transform:uppercase;
+            letter-spacing:.06em;
+          }
+
+          .student-info{
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:10px;
+            margin-bottom:24px;
+          }
+
+          .student-info div{
+            border:1px solid #e5e7eb;
+            padding:10px 12px;
+            border-radius:6px;
+          }
+
+          .student-info span{
+            display:block;
+            font-size:10px;
+            color:#9ca3af;
+            text-transform:uppercase;
+            margin-bottom:4px;
+          }
+
+          .section-title{
+            margin:30px 0 12px;
+            font-size:16px;
+            font-weight:700;
+            color:#111827;
+          }
+
+          table{
+            width:100%;
+            border-collapse:collapse;
+            margin-bottom:20px;
+          }
+
+          th{
+            background:#f9fafb;
+            padding:10px;
+            font-size:12px;
+            text-transform:uppercase;
+            border-bottom:2px solid #e5e7eb;
+            text-align:left;
+          }
+
+          td{
+            padding:10px;
+            border-bottom:1px solid #f3f4f6;
+            font-size:14px;
+          }
+
+          .summary{
+            margin-top:30px;
+            display:grid;
+            grid-template-columns:repeat(4,1fr);
+            border:1px solid #e5e7eb;
+            border-radius:8px;
+            overflow:hidden;
+          }
+
+          .summary div{
+            padding:16px;
+            text-align:center;
+            border-right:1px solid #e5e7eb;
+          }
+
+          .summary div:last-child{
+            border-right:none;
+          }
+
+          .summary .label{
+            font-size:11px;
+            color:#9ca3af;
+            text-transform:uppercase;
+            margin-bottom:5px;
+          }
+
+          .summary .val{
+            font-size:22px;
+            font-weight:700;
+          }
+
+          .green{
+            color:#16a34a;
+          }
+
+          .red{
+            color:#dc2626;
+          }
+
+          .footer{
+            margin-top:45px;
+            border-top:2px dashed #d1d5db;
+            padding-top:20px;
+          }
+
+          .bank-box{
+            background:#f9fafb;
+            border-radius:8px;
+            padding:16px;
+            line-height:1.9;
+            font-size:14px;
+          }
+
+          .signatures{
+            margin-top:55px;
+            display:flex;
+            justify-content:space-between;
+            gap:40px;
+          }
+
+          .sign{
+            flex:1;
+            border-top:1px solid #111827;
+            padding-top:8px;
+            text-align:center;
+            font-size:12px;
+            color:#6b7280;
+          }
+
+          @media print{
+            body{
+              margin:10px;
+            }
+          }
+
+        </style>
+      </head>
+
+      <body>
+
+        <div class="header">
+          ${logoHtml}
+
+          <h1>${currentSchool?.name || "School Name"}</h1>
+
+          ${currentSchool?.address ? `<p class="sub">${currentSchool.address}</p>` : ""}
+
+          ${currentSchool?.phone ? `<p class="sub">${currentSchool.phone}</p>` : ""}
+
+          ${currentSchool?.motto ? `<p class="sub"><i>"${currentSchool.motto}"</i></p>` : ""}
+
+          <div class="title">
+            Student Statement of Account
+          </div>
+        </div>
+
+        <div class="student-info">
+
+          <div>
+            <span>Student Name</span>
+            ${profile?.name || "-"}
+          </div>
+
+          <div>
+            <span>Admission Number</span>
+            ${profile?.admissionNumber || "-"}
+          </div>
+
+          <div>
+            <span>Class</span>
+            ${profile?.className || "-"}
+          </div>
+
+          <div>
+            <span>Session / Term</span>
+            ${termLabel}
+          </div>
+
+          <div>
+            <span>Date Generated</span>
+            ${new Date().toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+          </div>
+
+          <div>
+            <span>Parent Phone</span>
+            ${profile?.parentPhone || "-"}
+          </div>
+
+        </div>
+
+        <div class="section-title">
+          School Fees Payment History
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Date</th>
+              <th>Payment Method</th>
+              <th>Amount Paid</th>
+              <th>Remark</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${schoolFeeRows}
+          </tbody>
+        </table>
+
+        <div class="section-title">
+          Optional Fees Payment History
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Fee Name</th>
+              <th>Expected</th>
+              <th>Date</th>
+              <th>Method</th>
+              <th>Amount Paid</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${optionalFeeRows}
+          </tbody>
+        </table>
+
+        <div class="summary">
+
+          <div>
+            <div class="label">
+              School Fees Balance
+            </div>
+
+            <div class="val red">
+              ₦${schoolFeeBalance.toLocaleString()}
+            </div>
+          </div>
+
+          <div>
+            <div class="label">
+              Optional Fees Balance
+            </div>
+
+            <div class="val red">
+              ₦${optionalFeeBalance.toLocaleString()}
+            </div>
+          </div>
+
+          <div>
+            <div class="label">
+              Total Paid
+            </div>
+
+            <div class="val green">
+              ₦${totalPaid.toLocaleString()}
+            </div>
+          </div>
+
+          <div>
+            <div class="label">
+              Outstanding Balance
+            </div>
+
+            <div class="val red">
+              ₦${grandBalance.toLocaleString()}
+            </div>
+          </div>
+
+        </div>
+
+        <div class="footer">
+
+          <h3 style="margin-bottom:10px;">
+            School Bank Details
+          </h3>
+
+          <div class="bank-box">
+            Bank Name: <strong>${currentSchool?.bankName || "-"}</strong> <br/>
+            Account Name: <strong>${currentSchool?.accountName || "-"}</strong> <br/>
+            Account Number: <strong>${currentSchool?.accountNumber || "-"}</strong> <br/>
+          </div>
+
+          <div class="signatures">
+            <div class="sign">
+              Bursar Signature
+            </div>
+
+            <div class="sign">
+              School Management
+            </div>
+          </div>
+
+        </div>
+
+        <script>
+          window.onload = () => window.print()
+        </script>
+
+      </body>
+      </html>
+    `);
+
+      w.document.close();
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Failed to load payment history");
+    }
+  };
+
   const selectTerm = async (termData) => {
     setActiveTerm(termData);
     setResults(null);
@@ -1458,28 +1923,56 @@ ${r.remark}
                 </div>
               </div>
 
-              <button
-                onClick={contactSchool}
+              <div
                 style={{
-                  background: "#25D366",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "10px 16px",
-                  fontWeight: 600,
-                  cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: 8,
-                  whiteSpace: "nowrap",
-                  onfocus: {
-                    outline: "2px solid #25D366",
-                    outlineOffset: "2px",
-                  },
+                  gap: 10,
+                  flexWrap: "wrap",
                 }}
               >
-                💬 Contact Us
-              </button>
+                <button
+                  onClick={handleCurrentTermBill}
+                  style={{
+                    background: "#4f8ef7",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "10px 16px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  📄 Current Term Bill
+                </button>
+
+                <button
+                  onClick={contactSchool}
+                  style={{
+                    background: "#25D366",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "10px 16px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    whiteSpace: "nowrap",
+                    onfocus: {
+                      outline: "2px solid #25D366",
+                      outlineOffset: "2px",
+                    },
+                  }}
+                >
+                  💬 Contact Us
+                </button>
+              </div>
             </div>
 
             {/* Term cards */}
@@ -1706,16 +2199,34 @@ ${r.remark}
                         /> */}
                       </div>
 
-                      <p
+                      <div
                         style={{
-                          margin: "8px 0 0",
+                          marginTop: 10,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
                           fontSize: 12,
-                          color: "#4f8ef7",
-                          textAlign: "center",
                         }}
                       >
-                        Click to view results →
-                      </p>
+                        <button
+                          onClick={(e) => handleCurrentTermBill(e, t)}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "#4f8ef7",
+                            cursor: "pointer",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            padding: 0,
+                            textDecoration: "underline",
+                          }}
+                        >
+                          📄 Bill & History
+                        </button>
+                        <span style={{ color: "#4f8ef7" }}>
+                          View results →
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>

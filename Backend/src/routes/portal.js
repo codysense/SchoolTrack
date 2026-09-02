@@ -15,8 +15,10 @@ router.get("/school-info", async (_, res) => {
       logoUrl: true,
       phone: true,
       principalSignatureUrl: true,
-
       website: true,
+      bankName: true,
+      accountName: true,
+      accountNumber: true,
     },
   });
   res.json(school || {});
@@ -149,6 +151,11 @@ async function computeSubjectPositions({ classId, termId }) {
 
 // GET /api/portal/me
 router.get("/me", async (req, res) => {
+  const currentTerm = await prisma.term.findFirst({
+    where: { isCurrent: true },
+    include: { session: true },
+  });
+
   const student = await prisma.student.findUnique({
     where: { id: req.user.id },
     include: {
@@ -174,11 +181,15 @@ router.get("/me", async (req, res) => {
     ...student.optionalFeeAssigns.map((a) => a.termId),
   ]);
 
+  if (currentTerm) {
+    termIdSet.add(currentTerm.id);
+  }
+
   const terms = [];
   for (const termId of termIdSet) {
     const schoolPayments = student.payments.filter((p) => p.termId === termId);
     const schoolPaid = schoolPayments.reduce((s, p) => s + p.amountPaid, 0);
-    const schoolFee = student.class.feeAmount;
+    const schoolFee = student.class?.feeAmount || 0;
     const schoolBalance = schoolFee - schoolPaid;
 
     const optAssigns = student.optionalFeeAssigns.filter(
@@ -199,7 +210,14 @@ router.get("/me", async (req, res) => {
     const totalBalance = totalFee - totalPaid;
 
     // Get term label from first matching payment or assignment
-    const termRef = schoolPayments[0]?.term || optAssigns[0]?.term;
+    const termRef =
+      schoolPayments[0]?.term ||
+      optAssigns[0]?.term ||
+      (currentTerm?.id === termId ? currentTerm : null) ||
+      (await prisma.term.findUnique({
+        where: { id: termId },
+        include: { session: true },
+      }));
     const termName = termRef?.name || "Unknown term";
     const sessionName = termRef?.session?.name || "";
 
@@ -208,6 +226,7 @@ router.get("/me", async (req, res) => {
       termName,
       sessionName,
       termLabel: `${sessionName} — ${termName}`,
+      isCurrent: currentTerm?.id === termId,
       schoolFee,
       schoolPaid,
       schoolBalance,
@@ -244,9 +263,101 @@ router.get("/me", async (req, res) => {
     id: student.id,
     name: student.name,
     admissionNumber: student.admissionNumber,
-    className: student.class.className,
+    parentPhone: student.parentPhone,
+    className: student.class?.className,
     classId: student.classId,
+    feeAmount: student.class?.feeAmount || 0,
+    currentTermId: currentTerm?.id || null,
     terms,
+  });
+});
+
+// GET /api/portal/payments
+router.get("/payments", async (req, res) => {
+  let { termId } = req.query;
+  let term = null;
+
+  if (termId) {
+    term = await prisma.term.findUnique({
+      where: { id: termId },
+      include: { session: true },
+    });
+  } else {
+    term = await prisma.term.findFirst({
+      where: { isCurrent: true },
+      include: { session: true },
+    });
+    if (term) termId = term.id;
+  }
+
+  // Fallback to latest payment term if any
+  if (!term) {
+    const latestPayment = await prisma.payment.findFirst({
+      where: { studentId: req.user.id },
+      include: { term: { include: { session: true } } },
+      orderBy: { date: "desc" },
+    });
+    if (latestPayment?.term) {
+      term = latestPayment.term;
+      termId = term.id;
+    }
+  }
+
+  const student = await prisma.student.findUnique({
+    where: { id: req.user.id },
+    include: { class: true },
+  });
+
+  const payments = await prisma.payment.findMany({
+    where: {
+      studentId: req.user.id,
+      ...(termId && { termId }),
+    },
+    include: { term: { include: { session: true } } },
+    orderBy: { date: "desc" },
+  });
+
+  const optPayments = await prisma.optionalFeePayment.findMany({
+    where: {
+      studentId: req.user.id,
+      ...(termId && { optionalFeeAssign: { termId } }),
+    },
+    include: {
+      optionalFeeAssign: {
+        include: { optionalFee: true, term: { include: { session: true } } },
+      },
+    },
+    orderBy: { date: "desc" },
+  });
+
+  // Get optional fees assigned to the student for the term
+  const optFees = await prisma.optionalFeeAssign.findMany({
+    where: {
+      studentId: req.user.id,
+      ...(termId && { termId }),
+    },
+    include: { optionalFee: true },
+  });
+
+  const optFeeExpected = optFees.reduce((s, a) => s + a.optionalFee.amount, 0);
+  const optFeePaid = optPayments.reduce((s, p) => s + p.amountPaid, 0);
+  const optFeeBalance = optFeeExpected - optFeePaid;
+
+  res.json({
+    payments,
+    optPayments,
+    optFeeExpected,
+    optFeePaid,
+    optFeeBalance,
+    classFee: student?.class?.feeAmount || 0,
+    term: term
+      ? {
+          id: term.id,
+          name: term.name,
+          sessionName: term.session?.name || "",
+          isCurrent: term.isCurrent,
+        }
+      : null,
   });
 });
 
