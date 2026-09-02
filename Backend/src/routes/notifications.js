@@ -2,6 +2,7 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { authenticate } from "../middleware/auth.js";
 import { sendNotification } from "../services/notification.service.js";
+import { calculateStudentFeeBreakdown } from "../utils/scholarship.js";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -22,20 +23,21 @@ router.post("/remind-all", async (_, res) => {
     include: { class: true, payments: true },
   });
 
-  const owing = students.filter((s) => {
-    const paid = s.payments.reduce((sum, p) => sum + p.amountPaid, 0);
-    return s.class.feeAmount - paid > 0;
-  });
+  const owing = students
+    .map((s) => {
+      const paid = s.payments.reduce((sum, p) => sum + p.amountPaid, 0);
+      const breakdown = calculateStudentFeeBreakdown(s, 0);
+      const balance = breakdown.expectedSchoolFee - paid;
+      return { ...s, balance };
+    })
+    .filter((s) => s.balance > 0);
 
   const results = await Promise.allSettled(
     owing.map((s) => {
-      const balance =
-        s.class.feeAmount -
-        s.payments.reduce((sum, p) => sum + p.amountPaid, 0);
       return sendNotification({
         phone: s.parentPhone,
         type: "fee_reminder",
-        message: `Reminder: ₦${balance.toFixed(2)} outstanding fee for ${s.name}. Please pay promptly.`,
+        message: `Reminder: ₦${s.balance.toFixed(2)} outstanding fee for ${s.name}. Please pay promptly.`,
       });
     }),
   );

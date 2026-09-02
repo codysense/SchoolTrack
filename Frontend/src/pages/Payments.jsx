@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { useTerm } from "../context/TermContext";
 import Modal from "../components/Modal";
+import { calculateStudentFeeBreakdown } from "../utils/scholarship";
 import {
   Spinner,
   ErrorMessage,
@@ -94,11 +95,12 @@ export default function Payments() {
 
   // Show student balance for selected student + term
   const selectedStudent = students.find((s) => s.id === form.studentId);
+  const studentBreakdown = calculateStudentFeeBreakdown(selectedStudent, 0);
   const termPayments =
     selectedStudent?.payments?.filter((p) => p.termId === form.termId) || [];
   const termPaid = termPayments.reduce((s, p) => s + p.amountPaid, 0);
   const termBalance = selectedStudent
-    ? (selectedStudent.class?.feeAmount || 0) - termPaid
+    ? studentBreakdown.expectedSchoolFee - termPaid
     : null;
 
   //print Receipt
@@ -622,15 +624,28 @@ export default function Payments() {
           {selectedStudent && form.termId && (
             <div
               style={{
-                background: "#f9fafb",
+                background: selectedStudent.hasScholarship ? "#f5f3ff" : "#f9fafb",
+                border: selectedStudent.hasScholarship ? "1px solid #ddd6fe" : "none",
                 borderRadius: 8,
                 padding: "10px 14px",
                 marginBottom: 14,
                 fontSize: 13,
               }}
             >
-              <span style={{ color: "#6b7280" }}>School fee: </span>
-              <strong>{fmt(selectedStudent.class?.feeAmount)}</strong>
+              {selectedStudent.hasScholarship && Number(selectedStudent.scholarshipValue) > 0 && (
+                <div style={{ marginBottom: 6, color: "#7c3aed", fontWeight: 600 }}>
+                  🎓 {selectedStudent.scholarshipType === "PERCENTAGE" ? `${selectedStudent.scholarshipValue}%` : fmt(selectedStudent.scholarshipValue)}{" "}
+                  {selectedStudent.scholarshipTarget === "TOTAL" ? "Total Fee" : "Tuition"} Scholarship
+                  {selectedStudent.scholarshipReason && ` (${selectedStudent.scholarshipReason})`}
+                  <span style={{ color: "#6b7280", fontWeight: "normal", marginLeft: 8 }}>
+                    (Standard Fee: {fmt(selectedStudent.class?.feeAmount)})
+                  </span>
+                </div>
+              )}
+              <span style={{ color: "#6b7280" }}>
+                {selectedStudent.hasScholarship ? "Net school fee: " : "School fee: "}
+              </span>
+              <strong>{fmt(studentBreakdown.expectedSchoolFee)}</strong>
               <span style={{ color: "#6b7280", margin: "0 8px" }}>·</span>
               <span style={{ color: "#6b7280" }}>Paid this term: </span>
               <strong style={{ color: "#10b981" }}>{fmt(termPaid)}</strong>

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { authenticate, adminOnly } from "../middleware/auth.js";
 import { log } from "../services/audit.service.js";
+import { calculateStudentFeeBreakdown } from "../utils/scholarship.js";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -215,10 +216,10 @@ router.get("/terms/:termId/summary", async (req, res) => {
     }),
   ]);
 
-  const schoolFeeExpected = students.reduce(
-    (s, st) => s + st.class.feeAmount,
-    0,
-  );
+  const schoolFeeExpected = students.reduce((s, st) => {
+    const breakdown = calculateStudentFeeBreakdown(st, 0);
+    return s + breakdown.expectedSchoolFee;
+  }, 0);
   const schoolFeeCollected = payments.reduce((s, p) => s + p.amountPaid, 0);
 
   // Group optional fees by fee type

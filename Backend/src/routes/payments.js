@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { authenticate, adminOnly, staffOnly } from "../middleware/auth.js";
 import { sendNotification } from "../services/notification.service.js";
 import { log } from "../services/audit.service.js";
+import { calculateStudentFeeBreakdown } from "../utils/scholarship.js";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -64,10 +65,10 @@ router.get("/summary", staffOnly, async (req, res) => {
     }),
   ]);
 
-  const schoolFeeExpected = students.reduce(
-    (s, st) => s + st.class.feeAmount,
-    0,
-  );
+  const schoolFeeExpected = students.reduce((s, st) => {
+    const breakdown = calculateStudentFeeBreakdown(st, 0);
+    return s + breakdown.expectedSchoolFee;
+  }, 0);
   const schoolFeeCollected = payments.reduce((s, p) => s + p.amountPaid, 0);
 
   // Per-fee-type breakdown for individual dashboard cards
@@ -164,7 +165,9 @@ router.post("/", adminOnly, async (req, res) => {
     where: { id: studentId },
     include: { class: true },
   });
-  const balance = student.class.feeAmount - totalTermPaid;
+  const breakdown = calculateStudentFeeBreakdown(student, 0);
+  const expectedSchoolFee = breakdown.expectedSchoolFee;
+  const balance = expectedSchoolFee - totalTermPaid;
 
   if (amountPaid > balance) {
     return res.status(400).json({
@@ -196,7 +199,7 @@ router.post("/", adminOnly, async (req, res) => {
     0,
   );
   const studentTermBalance =
-    payment.student.class.feeAmount - studentTermPayments;
+    expectedSchoolFee - studentTermPayments;
   const termLabel = `${payment.term.session.name} ${payment.term.name}`;
 
   await log({

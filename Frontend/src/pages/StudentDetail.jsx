@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { Spinner, ErrorMessage, Badge } from "../components/ui";
+import { calculateStudentFeeBreakdown } from "../utils/scholarship";
 
 export default function StudentDetail() {
   const { id } = useParams();
@@ -21,6 +22,8 @@ export default function StudentDetail() {
   if (error)
     return <ErrorMessage message={error} onRetry={() => navigate(0)} />;
   if (!student) return null;
+
+  const breakdown = calculateStudentFeeBreakdown(student, student.optExpected || 0);
 
   // Group payments by term
   const paymentsByTerm = {};
@@ -48,18 +51,15 @@ export default function StudentDetail() {
   const allTermLabels = [...new Set([...Object.keys(paymentsByTerm)])].sort();
 
   const fmt = (n) => `₦${Number(n || 0).toLocaleString()}`;
+  const termCount = Math.max(allTermLabels.length, 1);
+  const expectedPayment =
+    breakdown.expectedSchoolFee * termCount + breakdown.expectedOptFee;
   const pct = Math.min(
     100,
     Math.round(
-      (student.totalPaid /
-        Math.max(student.class.feeAmount * allTermLabels.length, 1)) *
-        100,
+      (student.totalPaid / Math.max(expectedPayment, 1)) * 100,
     ),
   );
-  // console.log({ paymentsByTerm, optByTerm, allTermLabels, student });
-
-  const expectedPayment =
-    student.class.feeAmount * allTermLabels.length + student.optExpected;
   return (
     <div>
       <button
@@ -173,6 +173,48 @@ export default function StudentDetail() {
             </div>
           ))}
         </div>
+
+        {student.hasScholarship && Number(student.scholarshipValue) > 0 && (
+          <div
+            style={{
+              marginTop: 16,
+              padding: "10px 14px",
+              background: "#f5f3ff",
+              border: "1px solid #ddd6fe",
+              borderRadius: 8,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 8,
+              fontSize: 13,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 16 }}>🎓</span>
+              <div>
+                <strong style={{ color: "#6d28d9" }}>
+                  {student.scholarshipType === "PERCENTAGE"
+                    ? `${student.scholarshipValue}%`
+                    : fmt(student.scholarshipValue)}{" "}
+                  {student.scholarshipTarget === "TOTAL"
+                    ? "Total Fees"
+                    : "Tuition (School Fees)"}{" "}
+                  Scholarship
+                </strong>
+                {student.scholarshipReason && (
+                  <span style={{ color: "#7c3aed", marginLeft: 6 }}>
+                    ({student.scholarshipReason})
+                  </span>
+                )}
+              </div>
+            </div>
+            <div style={{ color: "#6d28d9", fontSize: 12 }}>
+              Standard Class Fee: {fmt(student.class?.feeAmount)} → Net Fee:{" "}
+              {fmt(breakdown.expectedSchoolFee)}
+            </div>
+          </div>
+        )}
 
         {/* Progress bar */}
         <div style={{ marginTop: 18 }}>
@@ -359,12 +401,12 @@ export default function StudentDetail() {
                           <strong
                             style={{
                               color:
-                                student.class.feeAmount - schoolPaid > 0
+                                breakdown.expectedSchoolFee - schoolPaid > 0
                                   ? "#f59e0b"
                                   : "#10b981",
                             }}
                           >
-                            {fmt(student.class.feeAmount - schoolPaid)}
+                            {fmt(breakdown.expectedSchoolFee - schoolPaid)}
                           </strong>
                         </td>
                       </tr>

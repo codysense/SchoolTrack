@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { authenticate, studentOnly } from "../middleware/auth.js";
+import { calculateStudentFeeBreakdown } from "../utils/scholarship.js";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -189,13 +190,11 @@ router.get("/me", async (req, res) => {
   for (const termId of termIdSet) {
     const schoolPayments = student.payments.filter((p) => p.termId === termId);
     const schoolPaid = schoolPayments.reduce((s, p) => s + p.amountPaid, 0);
-    const schoolFee = student.class?.feeAmount || 0;
-    const schoolBalance = schoolFee - schoolPaid;
 
     const optAssigns = student.optionalFeeAssigns.filter(
       (a) => a.termId === termId,
     );
-    const optExpected = optAssigns.reduce(
+    const optExpectedBase = optAssigns.reduce(
       (s, a) => s + a.optionalFee.amount,
       0,
     );
@@ -203,9 +202,15 @@ router.get("/me", async (req, res) => {
       (s, a) => s + a.payments.reduce((sp, p) => sp + p.amountPaid, 0),
       0,
     );
+
+    const breakdown = calculateStudentFeeBreakdown(student, optExpectedBase);
+    const schoolFee = breakdown.expectedSchoolFee;
+    const schoolBalance = schoolFee - schoolPaid;
+
+    const optExpected = breakdown.expectedOptFee;
     const optBalance = optExpected - optPaid;
 
-    const totalFee = schoolFee + optExpected;
+    const totalFee = breakdown.totalExpectedFee;
     const totalPaid = schoolPaid + optPaid;
     const totalBalance = totalFee - totalPaid;
 
@@ -228,14 +233,25 @@ router.get("/me", async (req, res) => {
       termLabel: `${sessionName} — ${termName}`,
       isCurrent: currentTerm?.id === termId,
       schoolFee,
+      baseSchoolFee: breakdown.baseSchoolFee,
+      schoolFeeDiscount: breakdown.schoolFeeDiscount,
       schoolPaid,
       schoolBalance,
       optExpected,
+      baseOptExpected: breakdown.baseOptFee,
+      optFeeDiscount: breakdown.optFeeDiscount,
       optPaid,
       optBalance,
       totalFee,
+      baseTotalFee: breakdown.baseTotalFee,
+      totalDiscount: breakdown.totalDiscount,
       totalPaid,
       totalBalance,
+      hasScholarship: breakdown.hasScholarship,
+      scholarshipType: breakdown.scholarshipType,
+      scholarshipValue: breakdown.scholarshipValue,
+      scholarshipTarget: breakdown.scholarshipTarget,
+      scholarshipReason: breakdown.scholarshipReason,
       fullyPaid: totalBalance <= 0,
       schoolPayments: schoolPayments.map((p) => ({
         id: p.id,
@@ -259,6 +275,8 @@ router.get("/me", async (req, res) => {
   // Sort by session+term name
   terms.sort((a, b) => a.termLabel.localeCompare(b.termLabel));
 
+  const studentBreakdown = calculateStudentFeeBreakdown(student, 0);
+
   res.json({
     id: student.id,
     name: student.name,
@@ -266,7 +284,13 @@ router.get("/me", async (req, res) => {
     parentPhone: student.parentPhone,
     className: student.class?.className,
     classId: student.classId,
-    feeAmount: student.class?.feeAmount || 0,
+    feeAmount: studentBreakdown.expectedSchoolFee,
+    baseFeeAmount: studentBreakdown.baseSchoolFee,
+    hasScholarship: studentBreakdown.hasScholarship,
+    scholarshipType: studentBreakdown.scholarshipType,
+    scholarshipValue: studentBreakdown.scholarshipValue,
+    scholarshipTarget: studentBreakdown.scholarshipTarget,
+    scholarshipReason: studentBreakdown.scholarshipReason,
     currentTermId: currentTerm?.id || null,
     terms,
   });
@@ -339,7 +363,10 @@ router.get("/payments", async (req, res) => {
     include: { optionalFee: true },
   });
 
-  const optFeeExpected = optFees.reduce((s, a) => s + a.optionalFee.amount, 0);
+  const optFeeExpectedBase = optFees.reduce((s, a) => s + a.optionalFee.amount, 0);
+  const breakdown = calculateStudentFeeBreakdown(student, optFeeExpectedBase);
+
+  const optFeeExpected = breakdown.expectedOptFee;
   const optFeePaid = optPayments.reduce((s, p) => s + p.amountPaid, 0);
   const optFeeBalance = optFeeExpected - optFeePaid;
 
@@ -349,7 +376,9 @@ router.get("/payments", async (req, res) => {
     optFeeExpected,
     optFeePaid,
     optFeeBalance,
-    classFee: student?.class?.feeAmount || 0,
+    classFee: breakdown.expectedSchoolFee,
+    baseClassFee: breakdown.baseSchoolFee,
+    breakdown,
     term: term
       ? {
           id: term.id,
@@ -381,8 +410,7 @@ router.get("/results/:studentId", async (req, res) => {
   if (!student) return res.status(404).json({ error: "Student not found" });
 
   const schoolPaid = student.payments.reduce((s, p) => s + p.amountPaid, 0);
-  const schoolFee = student.class.feeAmount;
-  const optExpected = student.optionalFeeAssigns.reduce(
+  const optExpectedBase = student.optionalFeeAssigns.reduce(
     (s, a) => s + a.optionalFee.amount,
     0,
   );
@@ -390,7 +418,9 @@ router.get("/results/:studentId", async (req, res) => {
     (s, a) => s + a.payments.reduce((sp, p) => sp + p.amountPaid, 0),
     0,
   );
-  const totalBalance = schoolFee + optExpected - (schoolPaid + optPaid);
+
+  const breakdown = calculateStudentFeeBreakdown(student, optExpectedBase);
+  const totalBalance = breakdown.totalExpectedFee - (schoolPaid + optPaid);
   const fullyPaid = totalBalance <= 0;
 
   try {

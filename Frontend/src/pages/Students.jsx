@@ -4,6 +4,7 @@ import { api } from "../api/client";
 import { useTerm } from "../context/TermContext";
 import Modal from "../components/Modal";
 import { fileUrl } from "../utils/fileUrl";
+import { calculateStudentFeeBreakdown } from "../utils/scholarship";
 import {
   Spinner,
   ErrorMessage,
@@ -37,6 +38,12 @@ const empty = {
 
   height: "",
   weight: "",
+
+  hasScholarship: false,
+  scholarshipType: "PERCENTAGE",
+  scholarshipValue: "",
+  scholarshipTarget: "TUITION",
+  scholarshipReason: "",
 
   passportPhoto: null,
   // existingPassportPhoto: "",
@@ -129,16 +136,14 @@ export default function Students() {
       height: s.height || "",
       weight: s.weight || "",
 
+      hasScholarship: Boolean(s.hasScholarship),
+      scholarshipType: s.scholarshipType || "PERCENTAGE",
+      scholarshipValue: s.scholarshipValue ?? "",
+      scholarshipTarget: s.scholarshipTarget || "TUITION",
+      scholarshipReason: s.scholarshipReason || "",
+
       passportPhoto: null, // File object for new upload,
       existingPassportPhoto: s.passportPhoto || "",
-      // passportPhoto: s.passportPhoto // Convert URL to File object for preview
-      //   ? fetch(s.passportPhoto)
-      //       .then((res) => res.blob())
-      //       .then(
-      //         (blob) =>
-      //           new File([blob], `passport_${s.id}.jpg`, { type: blob.type }),
-      //       )
-      //   : null,
     });
 
     setFormErr("");
@@ -184,18 +189,16 @@ export default function Students() {
         0,
       );
 
-      const expectedSchoolFees = s?.class?.feeAmount || 0;
+      const breakdown =
+        history.breakdown ||
+        calculateStudentFeeBreakdown(s, history.optFeeExpected || 0);
 
+      const expectedSchoolFees = breakdown.expectedSchoolFee;
       const schoolFeeBalance = expectedSchoolFees - totalSchoolFeesPaid;
-
-      const optionalFeeExpected = history.optFeeExpected || 0;
-
+      const optionalFeeExpected = breakdown.expectedOptFee;
       const optionalFeePaid = history.optFeePaid || 0;
-
-      const optionalFeeBalance = history.optFeeBalance || 0;
-
+      const optionalFeeBalance = optionalFeeExpected - optionalFeePaid;
       const totalPaid = totalSchoolFeesPaid + optionalFeePaid;
-
       const grandBalance = schoolFeeBalance + optionalFeeBalance;
 
       const schoolFeeRows = schoolPayments.length
@@ -493,6 +496,18 @@ export default function Students() {
             ${s.parentPhone || "-"}
           </div>
 
+          ${
+            breakdown.hasScholarship
+              ? `
+          <div style="grid-column:1 / -1; background:#f5f3ff; border:1px solid #ddd6fe; color:#6d28d9;">
+            <span>Scholarship / Fee Concession</span>
+            <strong>🎓 ${breakdown.scholarshipType === "PERCENTAGE" ? `${breakdown.scholarshipValue}%` : `₦${Number(breakdown.scholarshipValue).toLocaleString()}`} ${breakdown.scholarshipTarget === "TOTAL" ? "Total Fees" : "Tuition"} Scholarship</strong>
+            ${breakdown.scholarshipReason ? ` <i>(${breakdown.scholarshipReason})</i>` : ""} — 
+            Standard Tuition: ₦${Number(breakdown.baseSchoolFee).toLocaleString()} | Discount: -₦${Number(breakdown.totalDiscount).toLocaleString()} | Net Expected: ₦${Number(breakdown.expectedSchoolFee).toLocaleString()}
+          </div>`
+              : ""
+          }
+
         </div>
 
         <div class="section-title">
@@ -619,22 +634,21 @@ export default function Students() {
     }
   };
 
-  const payload = new FormData();
-
-  Object.entries(form).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== "") {
-      payload.append(key, value);
-    }
-  });
-
   const save = async () => {
     if (!form.name.trim()) return setFormErr("Name is required");
     if (!form.parentPhone.trim()) return setFormErr("Parent phone is required");
     if (!form.classId) return setFormErr("Select a class");
     setSaving(true);
+
+    const payload = new FormData();
+    Object.entries(form).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        payload.append(key, value);
+      }
+    });
+
     try {
       if (modal === "create") {
-        // await api("/students", { method: "POST", body: form });
         await api("/students", {
           method: "POST",
           body: payload,
@@ -825,7 +839,25 @@ export default function Students() {
                       {s.admissionNumber}
                     </td>
                     <td style={{ padding: "10px 14px", fontWeight: 500 }}>
-                      {s.name}
+                      <div>{s.name}</div>
+                      {s.hasScholarship && Number(s.scholarshipValue) > 0 && (
+                        <span
+                          style={{
+                            display: "inline-block",
+                            marginTop: 3,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: "#7c3aed",
+                            background: "#f5f3ff",
+                            border: "1px solid #ddd6fe",
+                            padding: "1px 6px",
+                            borderRadius: 10,
+                          }}
+                        >
+                          🎓 {s.scholarshipType === "PERCENTAGE" ? `${s.scholarshipValue}%` : fmt(s.scholarshipValue)}{" "}
+                          {s.scholarshipTarget === "TOTAL" ? "Total" : "Tuition"}
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: "10px 14px", color: "#6b7280" }}>
                       {s.class.className}
@@ -1270,6 +1302,179 @@ export default function Students() {
                   style={inputStyle}
                 />
               </FormField>
+            </div>
+
+            {/* Scholarship & Financial Aid */}
+            <h4 style={{ margin: "24px 0 12px", display: "flex", alignItems: "center", gap: 8 }}>
+              <span>🎓 Scholarship & Fee Discount</span>
+            </h4>
+
+            <div
+              style={{
+                background: form.hasScholarship ? "#f5f3ff" : "#f9fafb",
+                border: form.hasScholarship ? "1px solid #c4b5fd" : "1px solid #e5e7eb",
+                borderRadius: 8,
+                padding: 16,
+                marginBottom: 16,
+                transition: "all 0.2s",
+              }}
+            >
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  fontSize: 14,
+                  color: form.hasScholarship ? "#6d28d9" : "#374151",
+                  marginBottom: form.hasScholarship ? 14 : 0,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={Boolean(form.hasScholarship)}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      hasScholarship: e.target.checked,
+                    }))
+                  }
+                  style={{ width: 18, height: 18, cursor: "pointer" }}
+                />
+                Apply Scholarship / Fee Concession
+              </label>
+
+              {form.hasScholarship && (
+                <>
+                  <div style={formGridStyle}>
+                    <FormField label="Discount Type">
+                      <select
+                        value={form.scholarshipType || "PERCENTAGE"}
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            scholarshipType: e.target.value,
+                          }))
+                        }
+                        style={inputStyle}
+                      >
+                        <option value="PERCENTAGE">Percentage (%)</option>
+                        <option value="FIXED_AMOUNT">Fixed Amount (₦)</option>
+                      </select>
+                    </FormField>
+
+                    <FormField
+                      label={
+                        form.scholarshipType === "PERCENTAGE"
+                          ? "Discount Percentage (%)"
+                          : "Discount Amount (₦)"
+                      }
+                    >
+                      <input
+                        type="number"
+                        min="0"
+                        max={form.scholarshipType === "PERCENTAGE" ? 100 : undefined}
+                        step={form.scholarshipType === "PERCENTAGE" ? "1" : "500"}
+                        placeholder={
+                          form.scholarshipType === "PERCENTAGE"
+                            ? "e.g. 50"
+                            : "e.g. 20000"
+                        }
+                        value={form.scholarshipValue}
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            scholarshipValue: e.target.value,
+                          }))
+                        }
+                        style={inputStyle}
+                      />
+                    </FormField>
+
+                    <FormField label="Apply Discount To">
+                      <select
+                        value={form.scholarshipTarget || "TUITION"}
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            scholarshipTarget: e.target.value,
+                          }))
+                        }
+                        style={inputStyle}
+                      >
+                        <option value="TUITION">School Fees (Tuition) Only</option>
+                        <option value="TOTAL">Total Fees (Tuition + Optional)</option>
+                      </select>
+                    </FormField>
+
+                    <FormField label="Scholarship Reason / Category (Optional)">
+                      <input
+                        type="text"
+                        placeholder="e.g. Merit Award, Staff Child, Orphan Aid"
+                        value={form.scholarshipReason}
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            scholarshipReason: e.target.value,
+                          }))
+                        }
+                        style={inputStyle}
+                      />
+                    </FormField>
+                  </div>
+
+                  {/* Real-time preview */}
+                  {(() => {
+                    const selectedClass = classes.find((c) => c.id === form.classId);
+                    const classFee = selectedClass?.feeAmount || 0;
+                    const previewBreakdown = calculateStudentFeeBreakdown(
+                      {
+                        hasScholarship: true,
+                        scholarshipType: form.scholarshipType,
+                        scholarshipValue: form.scholarshipValue,
+                        scholarshipTarget: form.scholarshipTarget,
+                        class: { feeAmount: classFee },
+                      },
+                      0,
+                    );
+
+                    return (
+                      <div
+                        style={{
+                          marginTop: 12,
+                          padding: "10px 14px",
+                          background: "#fff",
+                          borderRadius: 6,
+                          border: "1px dashed #c4b5fd",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          flexWrap: "wrap",
+                          gap: 8,
+                          fontSize: 13,
+                        }}
+                      >
+                        <div>
+                          <span style={{ color: "#6b7280" }}>Standard Tuition: </span>
+                          <strong>{fmt(classFee)}</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: "#6b7280" }}>Discount: </span>
+                          <strong style={{ color: "#7c3aed" }}>
+                            -{fmt(previewBreakdown.schoolFeeDiscount)}
+                          </strong>
+                        </div>
+                        <div>
+                          <span style={{ color: "#6b7280" }}>Net Expected Tuition: </span>
+                          <strong style={{ color: "#16a34a" }}>
+                            {fmt(previewBreakdown.expectedSchoolFee)}
+                          </strong>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
             </div>
           </div>
           <div style={{ formGridStyle, marginTop: 20 }}>

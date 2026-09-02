@@ -144,6 +144,13 @@ model Student {
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
 
+  // Scholarship Information
+  hasScholarship    Boolean  @default(false)
+  scholarshipType   String?  // "PERCENTAGE" | "FIXED_AMOUNT"
+  scholarshipValue  Float?
+  scholarshipTarget String?  @default("TUITION") // "TUITION" | "TOTAL"
+  scholarshipReason String?
+
   //sportHouse          SportHouse? @relation(fields: [sportHouseId], references: [id])
   sportHouse          String?
   payments            Payment[]

@@ -405,6 +405,18 @@ Thank you.
             ${profile?.parentPhone || "-"}
           </div>
 
+          ${
+            history?.breakdown?.hasScholarship || targetTermObj?.hasScholarship || profile?.hasScholarship
+              ? `
+          <div style="grid-column:1 / -1; background:#f5f3ff; border:1px solid #ddd6fe; color:#6d28d9;">
+            <span>Scholarship / Fee Concession</span>
+            <strong>🎓 ${(history?.breakdown || targetTermObj || profile)?.scholarshipType === "PERCENTAGE" ? `${(history?.breakdown || targetTermObj || profile)?.scholarshipValue}%` : `₦${Number((history?.breakdown || targetTermObj || profile)?.scholarshipValue).toLocaleString()}`} ${(history?.breakdown || targetTermObj || profile)?.scholarshipTarget === "TOTAL" ? "Total Fees" : "Tuition"} Scholarship</strong>
+            ${(history?.breakdown || targetTermObj || profile)?.scholarshipReason ? ` <i>(${(history?.breakdown || targetTermObj || profile)?.scholarshipReason})</i>` : ""} — 
+            Standard Tuition: ₦${Number(history?.breakdown?.baseSchoolFee || targetTermObj?.baseSchoolFee || profile?.baseFeeAmount || 0).toLocaleString()} | Discount: -₦${Number(history?.breakdown?.totalDiscount || targetTermObj?.totalDiscount || 0).toLocaleString()} | Net Expected: ₦${Number(expectedSchoolFees).toLocaleString()}
+          </div>`
+              : ""
+          }
+
         </div>
 
         <div class="section-title">
@@ -1920,6 +1932,25 @@ ${r.remark}
                   >
                     {profile.className} · {profile.admissionNumber}
                   </p>
+                  {profile.hasScholarship && Number(profile.scholarshipValue) > 0 && (
+                    <span
+                      style={{
+                        display: "inline-block",
+                        marginTop: 4,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: "#7c3aed",
+                        background: "#f5f3ff",
+                        border: "1px solid #ddd6fe",
+                        padding: "1px 7px",
+                        borderRadius: 10,
+                      }}
+                    >
+                      🎓 {profile.scholarshipType === "PERCENTAGE" ? `${profile.scholarshipValue}%` : fmt(profile.scholarshipValue)}{" "}
+                      {profile.scholarshipTarget === "TOTAL" ? "Total Fees" : "Tuition"} Scholarship
+                      {profile.scholarshipReason && ` (${profile.scholarshipReason})`}
+                    </span>
+                  )}
                 </div>
               </div>
 

@@ -4,6 +4,7 @@ import { authenticate, adminOnly, staffOnly } from "../middleware/auth.js";
 import { log } from "../services/audit.service.js";
 import { uploadStudentPhoto } from "../middleware/uploadStudentPhoto.js";
 import { uploadToCloudinary } from "./utils/cloudinary.js";
+import { calculateStudentFeeBreakdown } from "../utils/scholarship.js";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -122,7 +123,7 @@ router.get("/", staffOnly, async (req, res) => {
   // console.log("Fetched students:", students);
   const data = students.map((s) => {
     const schoolPaid = s.payments.reduce((sum, p) => sum + p.amountPaid, 0);
-    const optExpected = s.optionalFeeAssigns.reduce(
+    const optExpectedBase = s.optionalFeeAssigns.reduce(
       (sum, a) => sum + a.optionalFee.amount,
       0,
     );
@@ -130,16 +131,27 @@ router.get("/", staffOnly, async (req, res) => {
       (sum, a) => sum + a.payments.reduce((sp, p) => sp + p.amountPaid, 0),
       0,
     );
-    const totalFee = s.class.feeAmount + optExpected;
+
+    const breakdown = calculateStudentFeeBreakdown(s, optExpectedBase);
     const totalPaid = schoolPaid + optPaid;
+
     return {
       ...s,
       schoolPaid,
       optPaid,
       totalPaid,
-      totalFee,
-      optExpected,
-      balance: totalFee - totalPaid,
+      schoolFee: breakdown.expectedSchoolFee,
+      baseSchoolFee: breakdown.baseSchoolFee,
+      schoolFeeDiscount: breakdown.schoolFeeDiscount,
+      optFeeDiscount: breakdown.optFeeDiscount,
+      totalDiscount: breakdown.totalDiscount,
+      optExpected: breakdown.expectedOptFee,
+      baseOptExpected: breakdown.baseOptFee,
+      totalFee: breakdown.totalExpectedFee,
+      baseTotalFee: breakdown.baseTotalFee,
+      balance: breakdown.totalExpectedFee - totalPaid,
+      schoolFeeBalance: breakdown.expectedSchoolFee - schoolPaid,
+      optFeeBalance: breakdown.expectedOptFee - optPaid,
     };
   });
 
@@ -169,7 +181,7 @@ router.get("/:id", staffOnly, async (req, res) => {
   if (!student) return res.status(404).json({ error: "Student not found" });
 
   const schoolPaid = student.payments.reduce((s, p) => s + p.amountPaid, 0);
-  const optExpected = student.optionalFeeAssigns.reduce(
+  const optExpectedBase = student.optionalFeeAssigns.reduce(
     (s, a) => s + a.optionalFee.amount,
     0,
   );
@@ -177,7 +189,8 @@ router.get("/:id", staffOnly, async (req, res) => {
     (s, a) => s + a.payments.reduce((sp, p) => sp + p.amountPaid, 0),
     0,
   );
-  const totalFee = student.class.feeAmount + optExpected;
+
+  const breakdown = calculateStudentFeeBreakdown(student, optExpectedBase);
   const totalPaid = schoolPaid + optPaid;
 
   res.json({
@@ -185,14 +198,28 @@ router.get("/:id", staffOnly, async (req, res) => {
     schoolPaid,
     optPaid,
     totalPaid,
-    totalFee,
-    optExpected,
-    balance: totalFee - totalPaid,
+    schoolFee: breakdown.expectedSchoolFee,
+    baseSchoolFee: breakdown.baseSchoolFee,
+    schoolFeeDiscount: breakdown.schoolFeeDiscount,
+    optFeeDiscount: breakdown.optFeeDiscount,
+    totalDiscount: breakdown.totalDiscount,
+    optExpected: breakdown.expectedOptFee,
+    baseOptExpected: breakdown.baseOptFee,
+    totalFee: breakdown.totalExpectedFee,
+    baseTotalFee: breakdown.baseTotalFee,
+    balance: breakdown.totalExpectedFee - totalPaid,
+    schoolFeeBalance: breakdown.expectedSchoolFee - schoolPaid,
+    optFeeBalance: breakdown.expectedOptFee - optPaid,
   });
 });
 //Get Student payment (including optional fees) history for a term
 router.get("/:id/payments", staffOnly, async (req, res) => {
   const { termId } = req.query;
+  const student = await prisma.student.findUnique({
+    where: { id: req.params.id },
+    include: { class: true },
+  });
+
   const payments = await prisma.payment.findMany({
     where: {
       studentId: req.params.id,
@@ -224,11 +251,12 @@ router.get("/:id/payments", staffOnly, async (req, res) => {
   });
 
   //Get total Optional fees assigned to the student for the term
-  const optFeeExpected = optFees.reduce((s, a) => s + a.optionalFee.amount, 0);
+  const optFeeExpectedBase = optFees.reduce((s, a) => s + a.optionalFee.amount, 0);
+  const breakdown = calculateStudentFeeBreakdown(student, optFeeExpectedBase);
 
-  //Get optional fees paid  for the student for the term
+  //Get optional fees paid for the student for the term
+  const optFeeExpected = breakdown.expectedOptFee;
   const optFeePaid = optPayments.reduce((s, p) => s + p.amountPaid, 0);
-
   const optFeeBalance = optFeeExpected - optFeePaid;
 
   res.json({
@@ -237,6 +265,7 @@ router.get("/:id/payments", staffOnly, async (req, res) => {
     optFeeExpected,
     optFeePaid,
     optFeeBalance,
+    breakdown,
   });
 });
 
@@ -283,11 +312,20 @@ router.post(
         // Physical Information
         height,
         weight,
+
+        // Scholarship Information
+        hasScholarship,
+        scholarshipType,
+        scholarshipValue,
+        scholarshipTarget,
+        scholarshipReason,
       } = req.body;
 
       if (!admissionNumber?.trim()) {
         admissionNumber = await generateAdmissionNumber(classId);
       }
+
+      const isScholarshipActive = hasScholarship === true || hasScholarship === "true";
 
       const student = await prisma.student.create({
         data: {
@@ -301,7 +339,7 @@ router.post(
           parentAddress: parentAddress?.trim() || null,
 
           // Academic Information
-          classId,
+          class: { connect: { id: classId } },
           entryClass: entryClass?.trim() || null,
           admissionDate: admissionDate ? new Date(admissionDate) : null,
 
@@ -324,6 +362,16 @@ router.post(
             weight !== undefined && weight !== null && weight !== ""
               ? parseFloat(weight)
               : null,
+
+          // Scholarship Information
+          hasScholarship: isScholarshipActive,
+          scholarshipType: isScholarshipActive ? (scholarshipType?.trim() || "PERCENTAGE") : null,
+          scholarshipValue:
+            isScholarshipActive && scholarshipValue !== undefined && scholarshipValue !== null && scholarshipValue !== ""
+              ? parseFloat(scholarshipValue)
+              : null,
+          scholarshipTarget: isScholarshipActive ? (scholarshipTarget?.trim() || "TUITION") : "TUITION",
+          scholarshipReason: isScholarshipActive ? (scholarshipReason?.trim() || null) : null,
 
           // Media (Saves Cloudinary HTTPS URL)
           passportPhoto: passportPhotoUrl,
@@ -402,11 +450,18 @@ router.put(
         genotype,
         height,
         weight,
+        hasScholarship,
+        scholarshipType,
+        scholarshipValue,
+        scholarshipTarget,
+        scholarshipReason,
       } = req.body;
 
       if (!admissionNumber?.trim()) {
         admissionNumber = await generateAdmissionNumber(classId);
       }
+
+      const isScholarshipActive = hasScholarship === true || hasScholarship === "true";
 
       const student = await prisma.student.update({
         where: { id: req.params.id },
@@ -421,7 +476,7 @@ router.put(
           parentAddress: parentAddress?.trim() || null,
 
           // Academic Information
-          classId,
+          ...(classId && { class: { connect: { id: classId } } }),
           entryClass: entryClass?.trim() || null,
           admissionDate: admissionDate ? new Date(admissionDate) : null,
 
@@ -444,6 +499,16 @@ router.put(
             weight !== undefined && weight !== null && weight !== ""
               ? parseFloat(weight)
               : null,
+
+          // Scholarship Information
+          hasScholarship: isScholarshipActive,
+          scholarshipType: isScholarshipActive ? (scholarshipType?.trim() || "PERCENTAGE") : null,
+          scholarshipValue:
+            isScholarshipActive && scholarshipValue !== undefined && scholarshipValue !== null && scholarshipValue !== ""
+              ? parseFloat(scholarshipValue)
+              : null,
+          scholarshipTarget: isScholarshipActive ? (scholarshipTarget?.trim() || "TUITION") : "TUITION",
+          scholarshipReason: isScholarshipActive ? (scholarshipReason?.trim() || null) : null,
 
           // Media (Saves Cloudinary HTTPS URL)
           passportPhoto: passportPhotoUrl,
