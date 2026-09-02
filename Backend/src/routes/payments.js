@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { authenticate, adminOnly, staffOnly } from "../middleware/auth.js";
 import { sendNotification } from "../services/notification.service.js";
 import { log } from "../services/audit.service.js";
-import { calculateStudentFeeBreakdown } from "../utils/scholarship.js";
+import { calculateStudentFeeBreakdown, getOrLockStudentTermFee } from "../utils/scholarship.js";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -50,7 +50,7 @@ router.get("/summary", staffOnly, async (req, res) => {
   const [students, payments, optAssigns, recentPayments] = await Promise.all([
     prisma.student.findMany({
       where: { isActive: true },
-      include: { class: true },
+      include: { class: true, studentTermFees: { where: { termId } } },
     }),
     prisma.payment.findMany({ where: { termId } }),
     prisma.optionalFeeAssign.findMany({
@@ -66,7 +66,8 @@ router.get("/summary", staffOnly, async (req, res) => {
   ]);
 
   const schoolFeeExpected = students.reduce((s, st) => {
-    const breakdown = calculateStudentFeeBreakdown(st, 0);
+    const termSnapshot = st.studentTermFees?.[0] || null;
+    const breakdown = calculateStudentFeeBreakdown(st, 0, termSnapshot);
     return s + breakdown.expectedSchoolFee;
   }, 0);
   const schoolFeeCollected = payments.reduce((s, p) => s + p.amountPaid, 0);
@@ -165,7 +166,10 @@ router.post("/", adminOnly, async (req, res) => {
     where: { id: studentId },
     include: { class: true },
   });
-  const breakdown = calculateStudentFeeBreakdown(student, 0);
+  if (!student) return res.status(404).json({ error: "Student not found" });
+
+  const termSnapshot = await getOrLockStudentTermFee(prisma, studentId, termId, student);
+  const breakdown = calculateStudentFeeBreakdown(student, 0, termSnapshot);
   const expectedSchoolFee = breakdown.expectedSchoolFee;
   const balance = expectedSchoolFee - totalTermPaid;
 

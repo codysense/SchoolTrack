@@ -161,6 +161,7 @@ router.get("/me", async (req, res) => {
     where: { id: req.user.id },
     include: {
       class: true,
+      studentTermFees: true,
       payments: {
         orderBy: { date: "desc" },
         include: { term: { include: { session: true } } },
@@ -203,7 +204,13 @@ router.get("/me", async (req, res) => {
       0,
     );
 
-    const breakdown = calculateStudentFeeBreakdown(student, optExpectedBase);
+    const termSnapshot =
+      student.studentTermFees?.find((tf) => tf.termId === termId) || null;
+    const breakdown = calculateStudentFeeBreakdown(
+      student,
+      optExpectedBase,
+      termSnapshot,
+    );
     const schoolFee = breakdown.expectedSchoolFee;
     const schoolBalance = schoolFee - schoolPaid;
 
@@ -275,7 +282,14 @@ router.get("/me", async (req, res) => {
   // Sort by session+term name
   terms.sort((a, b) => a.termLabel.localeCompare(b.termLabel));
 
-  const studentBreakdown = calculateStudentFeeBreakdown(student, 0);
+  const currentTermSnapshot = currentTerm
+    ? student.studentTermFees?.find((tf) => tf.termId === currentTerm.id) || null
+    : null;
+  const studentBreakdown = calculateStudentFeeBreakdown(
+    student,
+    0,
+    currentTermSnapshot,
+  );
 
   res.json({
     id: student.id,
@@ -327,10 +341,17 @@ router.get("/payments", async (req, res) => {
     }
   }
 
-  const student = await prisma.student.findUnique({
-    where: { id: req.user.id },
-    include: { class: true },
-  });
+  const [student, termSnapshot] = await Promise.all([
+    prisma.student.findUnique({
+      where: { id: req.user.id },
+      include: { class: true },
+    }),
+    termId
+      ? prisma.studentTermFee.findUnique({
+          where: { studentId_termId: { studentId: req.user.id, termId } },
+        })
+      : null,
+  ]);
 
   const payments = await prisma.payment.findMany({
     where: {
@@ -364,7 +385,7 @@ router.get("/payments", async (req, res) => {
   });
 
   const optFeeExpectedBase = optFees.reduce((s, a) => s + a.optionalFee.amount, 0);
-  const breakdown = calculateStudentFeeBreakdown(student, optFeeExpectedBase);
+  const breakdown = calculateStudentFeeBreakdown(student, optFeeExpectedBase, termSnapshot);
 
   const optFeeExpected = breakdown.expectedOptFee;
   const optFeePaid = optPayments.reduce((s, p) => s + p.amountPaid, 0);
@@ -396,17 +417,22 @@ router.get("/results/:studentId", async (req, res) => {
 
   if (!termId) return res.status(400).json({ error: "termId is required" });
 
-  const student = await prisma.student.findUnique({
-    where: { id: studentId },
-    include: {
-      class: true,
-      payments: { where: { termId } },
-      optionalFeeAssigns: {
-        where: { termId },
-        include: { optionalFee: true, payments: true },
+  const [student, termSnapshot] = await Promise.all([
+    prisma.student.findUnique({
+      where: { id: studentId },
+      include: {
+        class: true,
+        payments: { where: { termId } },
+        optionalFeeAssigns: {
+          where: { termId },
+          include: { optionalFee: true, payments: true },
+        },
       },
-    },
-  });
+    }),
+    prisma.studentTermFee.findUnique({
+      where: { studentId_termId: { studentId, termId } },
+    }),
+  ]);
   if (!student) return res.status(404).json({ error: "Student not found" });
 
   const schoolPaid = student.payments.reduce((s, p) => s + p.amountPaid, 0);
@@ -419,7 +445,7 @@ router.get("/results/:studentId", async (req, res) => {
     0,
   );
 
-  const breakdown = calculateStudentFeeBreakdown(student, optExpectedBase);
+  const breakdown = calculateStudentFeeBreakdown(student, optExpectedBase, termSnapshot);
   const totalBalance = breakdown.totalExpectedFee - (schoolPaid + optPaid);
   const fullyPaid = totalBalance <= 0;
 

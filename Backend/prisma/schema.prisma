@@ -77,6 +77,7 @@ model Term {
   results             Result[]
   assessments         Assessment[]
   attendanceSummaries AttendanceSummary[]
+  studentTermFees     StudentTermFee[]
 
   @@unique([sessionId, name])
 }
@@ -161,6 +162,7 @@ model Student {
   assessments Assessment[]
 
   attendanceSummaries AttendanceSummary[]
+  studentTermFees     StudentTermFee[]
 }
 
 // model SportHouse {
@@ -340,4 +342,29 @@ model NotificationLog {
   type      String
   status    String
   createdAt DateTime @default(now())
+}
+
+// Student Term Fee & Scholarship Snapshot
+model StudentTermFee {
+  id                String   @id @default(cuid())
+  studentId         String
+  student           Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  termId            String
+  term              Term     @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  // Snapshots for this specific term
+  baseSchoolFee     Float
+  hasScholarship    Boolean  @default(false)
+  scholarshipType   String?  // "PERCENTAGE" | "FIXED_AMOUNT"
+  scholarshipValue  Float?
+  scholarshipTarget String?  @default("TUITION") // "TUITION" | "TOTAL"
+  scholarshipReason String?
+
+  discountAmount    Float    @default(0)
+  expectedSchoolFee Float
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([studentId, termId])
 }

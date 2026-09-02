@@ -117,6 +117,7 @@ router.get("/", staffOnly, async (req, res) => {
       optionalFeeAssigns: termId
         ? { where: { termId }, include: { optionalFee: true, payments: true } }
         : { include: { optionalFee: true, payments: true } },
+      studentTermFees: termId ? { where: { termId } } : true,
     },
     orderBy: { name: "asc" },
   });
@@ -132,7 +133,11 @@ router.get("/", staffOnly, async (req, res) => {
       0,
     );
 
-    const breakdown = calculateStudentFeeBreakdown(s, optExpectedBase);
+    const termSnapshot = termId
+      ? s.studentTermFees?.find((tf) => tf.termId === termId) || s.studentTermFees?.[0] || null
+      : null;
+
+    const breakdown = calculateStudentFeeBreakdown(s, optExpectedBase, termSnapshot);
     const totalPaid = schoolPaid + optPaid;
 
     return {
@@ -164,6 +169,7 @@ router.get("/:id", staffOnly, async (req, res) => {
     where: { id: req.params.id },
     include: {
       class: true,
+      studentTermFees: true,
       payments: {
         orderBy: { date: "desc" },
         include: { term: { include: { session: true } } },
@@ -215,19 +221,37 @@ router.get("/:id", staffOnly, async (req, res) => {
 //Get Student payment (including optional fees) history for a term
 router.get("/:id/payments", staffOnly, async (req, res) => {
   const { termId } = req.query;
+
   const student = await prisma.student.findUnique({
     where: { id: req.params.id },
     include: { class: true },
   });
 
+  if (!student) return res.status(404).json({ error: "Student not found" });
+
+  // 1. Fetch term snapshot if termId provided
+  let termSnapshot = null;
+  if (termId) {
+    termSnapshot = await prisma.studentTermFee.findUnique({
+      where: { studentId_termId: { studentId: req.params.id, termId } },
+    });
+  }
+
+  //Get payments for the student (all or by term)
   const payments = await prisma.payment.findMany({
     where: {
       studentId: req.params.id,
       ...(termId && { termId }),
     },
-    include: { term: { include: { session: true } } },
+    include: {
+      term: {
+        include: { session: true },
+      },
+    },
     orderBy: { date: "desc" },
   });
+
+  //Get optional fee payments for the student
   const optPayments = await prisma.optionalFeePayment.findMany({
     where: {
       studentId: req.params.id,
@@ -235,7 +259,10 @@ router.get("/:id/payments", staffOnly, async (req, res) => {
     },
     include: {
       optionalFeeAssign: {
-        include: { optionalFee: true, term: { include: { session: true } } },
+        include: {
+          optionalFee: true,
+          term: { include: { session: true } },
+        },
       },
     },
     orderBy: { date: "desc" },
@@ -252,7 +279,7 @@ router.get("/:id/payments", staffOnly, async (req, res) => {
 
   //Get total Optional fees assigned to the student for the term
   const optFeeExpectedBase = optFees.reduce((s, a) => s + a.optionalFee.amount, 0);
-  const breakdown = calculateStudentFeeBreakdown(student, optFeeExpectedBase);
+  const breakdown = calculateStudentFeeBreakdown(student, optFeeExpectedBase, termSnapshot);
 
   //Get optional fees paid for the student for the term
   const optFeeExpected = breakdown.expectedOptFee;
@@ -380,6 +407,39 @@ router.post(
           class: true,
         },
       });
+
+      // Upsert snapshot for current term
+      const currentTerm = await prisma.term.findFirst({ where: { isCurrent: true } });
+      if (currentTerm) {
+        const baseSchoolFee = student.class?.feeAmount || 0;
+        const breakdown = calculateStudentFeeBreakdown(student, 0);
+
+        await prisma.studentTermFee.upsert({
+          where: { studentId_termId: { studentId: student.id, termId: currentTerm.id } },
+          create: {
+            studentId: student.id,
+            termId: currentTerm.id,
+            baseSchoolFee,
+            hasScholarship: breakdown.hasScholarship,
+            scholarshipType: breakdown.hasScholarship ? breakdown.scholarshipType : null,
+            scholarshipValue: breakdown.hasScholarship ? breakdown.scholarshipValue : null,
+            scholarshipTarget: breakdown.hasScholarship ? breakdown.scholarshipTarget : "TUITION",
+            scholarshipReason: breakdown.hasScholarship ? breakdown.scholarshipReason : null,
+            discountAmount: breakdown.schoolFeeDiscount,
+            expectedSchoolFee: breakdown.expectedSchoolFee,
+          },
+          update: {
+            baseSchoolFee,
+            hasScholarship: breakdown.hasScholarship,
+            scholarshipType: breakdown.hasScholarship ? breakdown.scholarshipType : null,
+            scholarshipValue: breakdown.hasScholarship ? breakdown.scholarshipValue : null,
+            scholarshipTarget: breakdown.hasScholarship ? breakdown.scholarshipTarget : "TUITION",
+            scholarshipReason: breakdown.hasScholarship ? breakdown.scholarshipReason : null,
+            discountAmount: breakdown.schoolFeeDiscount,
+            expectedSchoolFee: breakdown.expectedSchoolFee,
+          },
+        });
+      }
 
       await log({
         req,
@@ -517,6 +577,39 @@ router.put(
         },
         include: { class: true },
       });
+
+      // Upsert snapshot for current term without modifying past terms
+      const currentTerm = await prisma.term.findFirst({ where: { isCurrent: true } });
+      if (currentTerm) {
+        const baseSchoolFee = student.class?.feeAmount || 0;
+        const breakdown = calculateStudentFeeBreakdown(student, 0);
+
+        await prisma.studentTermFee.upsert({
+          where: { studentId_termId: { studentId: student.id, termId: currentTerm.id } },
+          create: {
+            studentId: student.id,
+            termId: currentTerm.id,
+            baseSchoolFee,
+            hasScholarship: breakdown.hasScholarship,
+            scholarshipType: breakdown.hasScholarship ? breakdown.scholarshipType : null,
+            scholarshipValue: breakdown.hasScholarship ? breakdown.scholarshipValue : null,
+            scholarshipTarget: breakdown.hasScholarship ? breakdown.scholarshipTarget : "TUITION",
+            scholarshipReason: breakdown.hasScholarship ? breakdown.scholarshipReason : null,
+            discountAmount: breakdown.schoolFeeDiscount,
+            expectedSchoolFee: breakdown.expectedSchoolFee,
+          },
+          update: {
+            baseSchoolFee,
+            hasScholarship: breakdown.hasScholarship,
+            scholarshipType: breakdown.hasScholarship ? breakdown.scholarshipType : null,
+            scholarshipValue: breakdown.hasScholarship ? breakdown.scholarshipValue : null,
+            scholarshipTarget: breakdown.hasScholarship ? breakdown.scholarshipTarget : "TUITION",
+            scholarshipReason: breakdown.hasScholarship ? breakdown.scholarshipReason : null,
+            discountAmount: breakdown.schoolFeeDiscount,
+            expectedSchoolFee: breakdown.expectedSchoolFee,
+          },
+        });
+      }
 
       await log({
         req,

@@ -208,7 +208,9 @@ router.get("/terms/:termId/summary", async (req, res) => {
   const { termId } = req.params;
 
   const [students, payments, optAssigns] = await Promise.all([
-    prisma.student.findMany({ include: { class: true } }),
+    prisma.student.findMany({
+      include: { class: true, studentTermFees: { where: { termId } } },
+    }),
     prisma.payment.findMany({ where: { termId } }),
     prisma.optionalFeeAssign.findMany({
       where: { termId },
@@ -217,7 +219,8 @@ router.get("/terms/:termId/summary", async (req, res) => {
   ]);
 
   const schoolFeeExpected = students.reduce((s, st) => {
-    const breakdown = calculateStudentFeeBreakdown(st, 0);
+    const termSnapshot = st.studentTermFees?.[0] || null;
+    const breakdown = calculateStudentFeeBreakdown(st, 0, termSnapshot);
     return s + breakdown.expectedSchoolFee;
   }, 0);
   const schoolFeeCollected = payments.reduce((s, p) => s + p.amountPaid, 0);

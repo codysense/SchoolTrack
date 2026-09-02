@@ -5,17 +5,22 @@
  * @param {number} [optExpected=0] - Total expected optional fees for the term
  * @returns {Object} Fee breakdown including discounts, expected fees, and totals
  */
-export function calculateStudentFeeBreakdown(student, optExpected = 0) {
-  const baseSchoolFee = Number(
-    student?.class?.feeAmount || student?.classFee || student?.feeAmount || student?.schoolFee || 0
-  );
+export function calculateStudentFeeBreakdown(student, optExpected = 0, termSnapshot = null) {
+  const snapshot = termSnapshot || student?.termSnapshot || null;
+
+  const baseSchoolFee = snapshot
+    ? Number(snapshot.baseSchoolFee ?? 0)
+    : Number(student?.class?.feeAmount || student?.classFee || student?.feeAmount || student?.schoolFee || 0);
   const optionalFees = Number(optExpected || student?.optExpected || 0);
 
-  const hasScholarship = Boolean(student?.hasScholarship && Number(student?.scholarshipValue || 0) > 0);
-  const scholarshipType = student?.scholarshipType || "PERCENTAGE"; // "PERCENTAGE" | "FIXED_AMOUNT"
-  const scholarshipTarget = student?.scholarshipTarget || "TUITION"; // "TUITION" | "TOTAL"
-  const scholarshipValue = Number(student?.scholarshipValue || 0);
-  const scholarshipReason = student?.scholarshipReason || null;
+  const hasScholarship = snapshot
+    ? Boolean(snapshot.hasScholarship && Number(snapshot.scholarshipValue || 0) > 0)
+    : Boolean(student?.hasScholarship && Number(student?.scholarshipValue || 0) > 0);
+
+  const scholarshipType = snapshot ? (snapshot.scholarshipType || "PERCENTAGE") : (student?.scholarshipType || "PERCENTAGE");
+  const scholarshipTarget = snapshot ? (snapshot.scholarshipTarget || "TUITION") : (student?.scholarshipTarget || "TUITION");
+  const scholarshipValue = snapshot ? Number(snapshot.scholarshipValue || 0) : Number(student?.scholarshipValue || 0);
+  const scholarshipReason = snapshot ? (snapshot.scholarshipReason || null) : (student?.scholarshipReason || null);
 
   let schoolFeeDiscount = 0;
   let optFeeDiscount = 0;
