@@ -1,6 +1,6 @@
 -- AlterTable
-ALTER TABLE "Student" ADD COLUMN     "hasScholarship" BOOLEAN NOT NULL DEFAULT false,
-ADD COLUMN     "scholarshipType" TEXT,
-ADD COLUMN     "scholarshipValue" DOUBLE PRECISION,
-ADD COLUMN     "scholarshipTarget" TEXT DEFAULT 'TUITION',
-ADD COLUMN     "scholarshipReason" TEXT;
+ALTER TABLE "Student" ADD COLUMN IF NOT EXISTS "hasScholarship" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Student" ADD COLUMN IF NOT EXISTS "scholarshipType" TEXT;
+ALTER TABLE "Student" ADD COLUMN IF NOT EXISTS "scholarshipValue" DOUBLE PRECISION;
+ALTER TABLE "Student" ADD COLUMN IF NOT EXISTS "scholarshipTarget" TEXT DEFAULT 'TUITION';
+ALTER TABLE "Student" ADD COLUMN IF NOT EXISTS "scholarshipReason" TEXT;

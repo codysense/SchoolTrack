@@ -1,5 +1,5 @@
-﻿-- CreateTable
-CREATE TABLE "StudentTermFee" (
+-- CreateTable
+CREATE TABLE IF NOT EXISTS "StudentTermFee" (
     "id" TEXT NOT NULL,
     "studentId" TEXT NOT NULL,
     "termId" TEXT NOT NULL,
@@ -18,10 +18,24 @@ CREATE TABLE "StudentTermFee" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "StudentTermFee_studentId_termId_key" ON "StudentTermFee"("studentId", "termId");
+CREATE UNIQUE INDEX IF NOT EXISTS "StudentTermFee_studentId_termId_key" ON "StudentTermFee"("studentId", "termId");
 
 -- AddForeignKey
-ALTER TABLE "StudentTermFee" ADD CONSTRAINT "StudentTermFee_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'StudentTermFee_studentId_fkey'
+    ) THEN
+        ALTER TABLE "StudentTermFee" ADD CONSTRAINT "StudentTermFee_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "StudentTermFee" ADD CONSTRAINT "StudentTermFee_termId_fkey" FOREIGN KEY ("termId") REFERENCES "Term"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'StudentTermFee_termId_fkey'
+    ) THEN
+        ALTER TABLE "StudentTermFee" ADD CONSTRAINT "StudentTermFee_termId_fkey" FOREIGN KEY ("termId") REFERENCES "Term"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
