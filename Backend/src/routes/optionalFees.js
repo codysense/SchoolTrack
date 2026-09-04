@@ -51,11 +51,25 @@ router.delete('/types/:id', adminOnly, async (req, res) => {
 // ── Assignments ───────────────────────────────────────────────────────────────
 
 router.get('/assigns', async (req, res) => {
-  const { termId, studentId } = req.query
+  const { termId, studentId, classId, status } = req.query
+
+  let statusWhere = {}
+  if (status && status.toUpperCase() !== 'ALL') {
+    statusWhere = { status: status.toUpperCase() }
+  } else if (!status) {
+    statusWhere = { status: 'ACTIVE' }
+  }
+
   const assigns = await prisma.optionalFeeAssign.findMany({
     where: {
       ...(termId    && { termId }),
-      ...(studentId && { studentId })
+      ...(studentId && { studentId }),
+      ...(classId || Object.keys(statusWhere).length ? {
+        student: {
+          ...(classId && { classId }),
+          ...statusWhere,
+        }
+      } : {}),
     },
     include: {
       optionalFee: true,

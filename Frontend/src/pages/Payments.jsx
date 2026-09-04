@@ -24,11 +24,24 @@ export default function Payments() {
   const [saving, setSaving] = useState(false);
   const [formErr, setFormErr] = useState("");
   const [filterTermId, setFilterTermId] = useState("");
+  const [filterType, setFilterType] = useState("ALL");
+  const [filterStatus, setFilterStatus] = useState("ACTIVE");
+  const [search, setSearch] = useState("");
   const [school, setSchool] = useState(null);
+
+  // Fee category in payment modal: "TUITION" vs "OPTIONAL"
+  const [feeCategory, setFeeCategory] = useState("TUITION");
+  const [studentAssigns, setStudentAssigns] = useState([]);
+  const [assignLoading, setAssignLoading] = useState(false);
+
+  // Searchable student picker states
+  const [studentSearch, setStudentSearch] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const [form, setForm] = useState({
     studentId: "",
     termId: "",
+    optionalFeeAssignId: "",
     amountPaid: "",
     paymentMethod: "cash",
     note: "",
@@ -45,8 +58,13 @@ export default function Payments() {
 
   const load = () => {
     setLoading(true);
-    const url = filterTermId ? `/payments?termId=${filterTermId}` : "/payments";
-    Promise.all([api(url), api("/students"), api("/setup/school")])
+    const params = new URLSearchParams();
+    if (filterTermId) params.set("termId", filterTermId);
+    if (filterType !== "ALL") params.set("type", filterType.toLowerCase());
+    if (filterStatus) params.set("status", filterStatus);
+    const url = `/payments?${params.toString()}`;
+
+    Promise.all([api(url), api("/students?status=ACTIVE"), api("/setup/school")])
       .then(([p, s, sc]) => {
         setPayments(p);
         setStudents(s);
@@ -58,15 +76,36 @@ export default function Payments() {
 
   useEffect(() => {
     load();
-  }, [filterTermId]);
+  }, [filterTermId, filterType, filterStatus]);
 
-  console.log({ payments, students });
+  // When student or term changes in OPTIONAL mode, fetch student's assigned optional fees
+  useEffect(() => {
+    if (form.studentId && form.termId && feeCategory === "OPTIONAL") {
+      setAssignLoading(true);
+      api(`/optional-fees/assigns?studentId=${form.studentId}&termId=${form.termId}`)
+        .then((res) => {
+          setStudentAssigns(res);
+          if (res.length > 0) {
+            setForm((p) => ({ ...p, optionalFeeAssignId: res[0].id }));
+          } else {
+            setForm((p) => ({ ...p, optionalFeeAssignId: "" }));
+          }
+        })
+        .catch((err) => console.error(err))
+        .finally(() => setAssignLoading(false));
+    }
+  }, [form.studentId, form.termId, feeCategory]);
 
   // Pre-fill termId with current active term when modal opens
   const openModal = () => {
+    setFeeCategory("TUITION");
+    setStudentAssigns([]);
+    setStudentSearch("");
+    setDropdownOpen(false);
     setForm({
       studentId: "",
       termId: currentTerm?.id || "",
+      optionalFeeAssignId: "",
       amountPaid: "",
       paymentMethod: "cash",
       note: "",
@@ -79,9 +118,42 @@ export default function Payments() {
     if (!form.studentId) return setFormErr("Select a student");
     if (!form.termId) return setFormErr("Select a term");
     if (!form.amountPaid) return setFormErr("Enter amount paid");
+    const amt = parseFloat(form.amountPaid);
+    if (amt <= 0 || isNaN(amt)) return setFormErr("Amount must be greater than 0");
+
+    if (feeCategory === "OPTIONAL") {
+      if (!form.optionalFeeAssignId) return setFormErr("Select an assigned optional fee");
+      const selectedAssign = studentAssigns.find((a) => a.id === form.optionalFeeAssignId);
+      if (selectedAssign && amt > selectedAssign.balance + 0.01) {
+        return setFormErr(`Max payable for ${selectedAssign.optionalFee.name} is ₦${selectedAssign.balance.toLocaleString()}`);
+      }
+    }
+
     setSaving(true);
     try {
-      await api("/payments", { method: "POST", body: form });
+      if (feeCategory === "OPTIONAL") {
+        await api("/optional-fees/payments", {
+          method: "POST",
+          body: {
+            optionalFeeAssignId: form.optionalFeeAssignId,
+            studentId: form.studentId,
+            amountPaid: amt,
+            paymentMethod: form.paymentMethod,
+            note: form.note || null,
+          },
+        });
+      } else {
+        await api("/payments", {
+          method: "POST",
+          body: {
+            studentId: form.studentId,
+            termId: form.termId,
+            amountPaid: amt,
+            paymentMethod: form.paymentMethod,
+            note: form.note || null,
+          },
+        });
+      }
       setModal(false);
       load();
     } catch (e) {
@@ -93,7 +165,7 @@ export default function Payments() {
 
   const fmt = (n) => `₦${Number(n || 0).toLocaleString()}`;
 
-  // Show student balance for selected student + term
+  // Show student balance for selected student + term (Tuition)
   const selectedStudent = students.find((s) => s.id === form.studentId);
   const studentBreakdown = calculateStudentFeeBreakdown(selectedStudent, 0);
   const termPayments =
@@ -103,9 +175,18 @@ export default function Payments() {
     ? studentBreakdown.expectedSchoolFee - termPaid
     : null;
 
+  // Selected optional fee assignment
+  const selectedAssign = studentAssigns.find((a) => a.id === form.optionalFeeAssignId);
+
   //print Receipt
   const printReceipt = (payment) => {
     if (!payment) return;
+
+    const isOptional = payment.paymentType === "OPTIONAL" || Boolean(payment.optionalFeeAssign);
+    const receiptTitle = isOptional
+      ? `Optional Fee Payment Receipt`
+      : `School Fees Payment Receipt`;
+    const feeItemName = payment.feeName || (isOptional ? "Optional Fee" : "Tuition / School Fees");
 
     const w = window.open("", "_blank");
 
@@ -137,7 +218,7 @@ export default function Payments() {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>School Fees Payment Receipt</title>
+      <title>${receiptTitle}</title>
       <style>
         * {
           box-sizing: border-box;
@@ -289,7 +370,7 @@ export default function Payments() {
         ${school?.phone ? `<p class="sub">${school.phone}</p>` : ""}
         ${school?.motto ? `<p class="sub"><i>"${school.motto}"</i></p>` : ""}
 
-        <div class="title">Official Payment Receipt</div>
+        <div class="title">${receiptTitle}</div>
         <div class="receipt-badge">
           Receipt No: ${payment.id.slice(-8).toUpperCase()}
         </div>
@@ -340,31 +421,36 @@ export default function Payments() {
       <div class="payment-summary">
         <table>
           <tr>
+            <td><strong>Fee Type / Purpose</strong></td>
+            <td><strong>${feeItemName}</strong></td>
+          </tr>
+
+          <tr>
             <td><strong>Amount Paid</strong></td>
             <td class="amount-paid">
               ₦${Number(payment.amountPaid).toLocaleString()}
             </td>
           </tr>
 
+          ${!isOptional ? `
           <tr>
             <td><strong>Current Balance</strong></td>
             <td class="balance">
               ₦${Number(payment.currentBalance || 0).toLocaleString()}
             </td>
           </tr>
+          ` : ""}
 
           <tr>
             <td><strong>Payment Note</strong></td>
             <td>
-              ${payment.note || "School fee payment"}
+              ${payment.note || (isOptional ? "Optional fee payment" : "School fee payment")}
             </td>
           </tr>
         </table>
       </div>
 
       <div class="footer">
-       
-
         <div class="signature">
           <div>Bursar Signature</div>
           <div>School Stamp / Management</div>
@@ -420,12 +506,31 @@ export default function Payments() {
         </div>
       )}
 
-      {/* Filter by term */}
-      <div style={{ marginBottom: 14 }}>
+      {/* Filter by search, status, term & fee type */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+        <input
+          type="text"
+          placeholder="🔍 Search student, class, or fee…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ ...inputStyle, maxWidth: 260, fontSize: 13 }}
+        />
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          style={{ ...inputStyle, maxWidth: 170, fontSize: 13 }}
+        >
+          <option value="ACTIVE">Active Students</option>
+          <option value="GRADUATED">Graduated</option>
+          <option value="LEFT">Left / Transferred</option>
+          <option value="SUSPENDED">Suspended</option>
+          <option value="EXPELLED">Expelled</option>
+          <option value="ALL">All Statuses</option>
+        </select>
         <select
           value={filterTermId}
           onChange={(e) => setFilterTermId(e.target.value)}
-          style={{ ...inputStyle, maxWidth: 260, fontSize: 13 }}
+          style={{ ...inputStyle, maxWidth: 220, fontSize: 13 }}
         >
           <option value="">All terms</option>
           {allTerms.map((t) => (
@@ -433,6 +538,15 @@ export default function Payments() {
               {t.label}
             </option>
           ))}
+        </select>
+        <select
+          value={filterType}
+          onChange={(e) => setFilterType(e.target.value)}
+          style={{ ...inputStyle, maxWidth: 180, fontSize: 13 }}
+        >
+          <option value="ALL">All Payment Types</option>
+          <option value="TUITION">Tuition Only</option>
+          <option value="OPTIONAL">Optional Fees Only</option>
         </select>
       </div>
 
@@ -467,6 +581,7 @@ export default function Payments() {
                     "Date",
                     "Student",
                     "Class",
+                    "Fee Type",
                     "Amount",
                     "Term",
                     "Session",
@@ -491,7 +606,20 @@ export default function Payments() {
                 </tr>
               </thead>
               <tbody>
-                {payments.map((p) => (
+                {payments
+                  .filter((p) => {
+                    if (!search.trim()) return true;
+                    const q = search.toLowerCase();
+                    return (
+                      p.student?.name?.toLowerCase().includes(q) ||
+                      p.student?.admissionNumber?.toLowerCase().includes(q) ||
+                      p.student?.class?.className?.toLowerCase().includes(q) ||
+                      p.feeName?.toLowerCase().includes(q) ||
+                      p.paymentMethod?.toLowerCase().includes(q) ||
+                      p.note?.toLowerCase().includes(q)
+                    );
+                  })
+                  .map((p) => (
                   <tr key={p.id} style={{ borderTop: "1px solid #f3f4f6" }}>
                     <td style={{ padding: "10px 14px", fontWeight: 500 }}>
                       {p.date ? new Date(p.date).toLocaleDateString() : "—"}
@@ -501,6 +629,22 @@ export default function Payments() {
                     </td>
                     <td style={{ padding: "10px 14px", color: "#6b7280" }}>
                       {p.student.class.className}
+                    </td>
+                    <td style={{ padding: "10px 14px" }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          padding: "2px 8px",
+                          borderRadius: 12,
+                          background: p.paymentType === "OPTIONAL" ? "#fef3c7" : "#ecfdf5",
+                          color: p.paymentType === "OPTIONAL" ? "#b45309" : "#065f46",
+                          border: `1px solid ${p.paymentType === "OPTIONAL" ? "#fde68a" : "#a7f3d0"}`,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {p.paymentType === "OPTIONAL" ? `⚡ ${p.feeName || "Optional"}` : "🎓 Tuition"}
+                      </span>
                     </td>
                     <td
                       style={{
@@ -558,10 +702,21 @@ export default function Payments() {
                     </td>
                   </tr>
                 ))}
-                {payments.length === 0 && (
+                {payments.filter((p) => {
+                  if (!search.trim()) return true;
+                  const q = search.toLowerCase();
+                  return (
+                    p.student?.name?.toLowerCase().includes(q) ||
+                    p.student?.admissionNumber?.toLowerCase().includes(q) ||
+                    p.student?.class?.className?.toLowerCase().includes(q) ||
+                    p.feeName?.toLowerCase().includes(q) ||
+                    p.paymentMethod?.toLowerCase().includes(q) ||
+                    p.note?.toLowerCase().includes(q)
+                  );
+                }).length === 0 && (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={10}
                       style={{
                         padding: "40px 14px",
                         textAlign: "center",
@@ -581,9 +736,67 @@ export default function Payments() {
       {/* Modal */}
       {modal && (
         <Modal
-          title="Record School Fee Payment"
+          title={
+            feeCategory === "OPTIONAL"
+              ? "Record Optional Fee Payment"
+              : "Record School Fee Payment"
+          }
           onClose={() => setModal(false)}
         >
+          {/* Fee Type Selection Tab Buttons */}
+          <div
+            style={{
+              display: "flex",
+              background: "#f3f4f6",
+              borderRadius: 8,
+              padding: 4,
+              marginBottom: 16,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setFeeCategory("TUITION");
+                setFormErr("");
+              }}
+              style={{
+                flex: 1,
+                padding: "8px 12px",
+                border: "none",
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                background: feeCategory === "TUITION" ? "#fff" : "transparent",
+                color: feeCategory === "TUITION" ? "#1a1f36" : "#6b7280",
+                boxShadow: feeCategory === "TUITION" ? "0 1px 4px rgba(0,0,0,.08)" : "none",
+              }}
+            >
+              🎓 School Fees (Tuition)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFeeCategory("OPTIONAL");
+                setFormErr("");
+              }}
+              style={{
+                flex: 1,
+                padding: "8px 12px",
+                border: "none",
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                background: feeCategory === "OPTIONAL" ? "#fff" : "transparent",
+                color: feeCategory === "OPTIONAL" ? "#1a1f36" : "#6b7280",
+                boxShadow: feeCategory === "OPTIONAL" ? "0 1px 4px rgba(0,0,0,.08)" : "none",
+              }}
+            >
+              ⚡ Assigned Optional Fees
+            </button>
+          </div>
+
           <ErrorMessage message={formErr} />
 
           <FormField label="Term">
@@ -603,25 +816,240 @@ export default function Payments() {
             </select>
           </FormField>
 
-          <FormField label="Student">
-            <select
-              value={form.studentId}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, studentId: e.target.value }))
-              }
-              style={inputStyle}
-            >
-              <option value="">Select student…</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.class.className}) — {s.admissionNumber}
-                </option>
-              ))}
-            </select>
+          <FormField label="Student" hint="Type student name or admission number to search">
+            <div style={{ position: "relative" }}>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Search student by name or admission no…"
+                  value={
+                    dropdownOpen
+                      ? studentSearch
+                      : selectedStudent
+                        ? `${selectedStudent.name} (${selectedStudent.class?.className}) — ${selectedStudent.admissionNumber}`
+                        : studentSearch
+                  }
+                  onFocus={() => {
+                    setDropdownOpen(true);
+                    if (selectedStudent && !studentSearch) {
+                      setStudentSearch("");
+                    }
+                  }}
+                  onChange={(e) => {
+                    setStudentSearch(e.target.value);
+                    if (!dropdownOpen) setDropdownOpen(true);
+                  }}
+                  style={{ ...inputStyle, width: "100%" }}
+                />
+                {form.studentId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm((p) => ({ ...p, studentId: "" }));
+                      setStudentSearch("");
+                      setDropdownOpen(true);
+                    }}
+                    style={{
+                      background: "#fee2e2",
+                      color: "#dc2626",
+                      border: "1px solid #fca5a5",
+                      borderRadius: 6,
+                      padding: "8px 12px",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                    }}
+                    title="Clear student selection"
+                  >
+                    ✕ Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Dropdown search results */}
+              {dropdownOpen && (
+                <>
+                  <div
+                    onClick={() => setDropdownOpen(false)}
+                    style={{
+                      position: "fixed",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      zIndex: 998,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      right: 0,
+                      marginTop: 4,
+                      background: "#fff",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 8,
+                      boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+                      maxHeight: 220,
+                      overflowY: "auto",
+                      zIndex: 999,
+                    }}
+                  >
+                    {students
+                      .filter((s) => {
+                        const q = studentSearch.trim().toLowerCase();
+                        if (!q) return true;
+                        return (
+                          s.name?.toLowerCase().includes(q) ||
+                          s.admissionNumber?.toLowerCase().includes(q) ||
+                          s.class?.className?.toLowerCase().includes(q)
+                        );
+                      })
+                      .map((s) => (
+                        <div
+                          key={s.id}
+                          onClick={() => {
+                            setForm((p) => ({ ...p, studentId: s.id }));
+                            setStudentSearch("");
+                            setDropdownOpen(false);
+                          }}
+                          style={{
+                            padding: "10px 14px",
+                            cursor: "pointer",
+                            borderBottom: "1px solid #f3f4f6",
+                            background: form.studentId === s.id ? "#eff6ff" : "#fff",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            fontSize: 13,
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "#f9fafb")}
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background =
+                              form.studentId === s.id ? "#eff6ff" : "#fff")
+                          }
+                        >
+                          <div>
+                            <strong style={{ color: "#1f2937" }}>{s.name}</strong>
+                            <span style={{ color: "#6b7280", marginLeft: 8, fontSize: 12 }}>
+                              ({s.class?.className})
+                            </span>
+                            {s.hasScholarship && (
+                              <span
+                                style={{
+                                  marginLeft: 6,
+                                  fontSize: 11,
+                                  color: "#7c3aed",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                🎓
+                              </span>
+                            )}
+                          </div>
+                          <span
+                            style={{
+                              fontFamily: "monospace",
+                              fontSize: 11,
+                              color: "#6b7280",
+                              background: "#f3f4f6",
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                            }}
+                          >
+                            {s.admissionNumber}
+                          </span>
+                        </div>
+                      ))}
+
+                    {students.filter((s) => {
+                      const q = studentSearch.trim().toLowerCase();
+                      if (!q) return true;
+                      return (
+                        s.name?.toLowerCase().includes(q) ||
+                        s.admissionNumber?.toLowerCase().includes(q) ||
+                        s.class?.className?.toLowerCase().includes(q)
+                      );
+                    }).length === 0 && (
+                      <div
+                        style={{
+                          padding: "16px",
+                          textAlign: "center",
+                          color: "#9ca3af",
+                          fontSize: 13,
+                        }}
+                      >
+                        No students found matching "{studentSearch}"
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </FormField>
 
-          {/* Live balance hint */}
-          {selectedStudent && form.termId && (
+          {/* If Optional Fee mode: Select assigned optional fee */}
+          {feeCategory === "OPTIONAL" && (
+            <FormField
+              label="Assigned Optional Fee"
+              hint={
+                assignLoading
+                  ? "Loading assigned fees…"
+                  : studentAssigns.length === 0 && form.studentId && form.termId
+                    ? "No optional fees assigned to this student for this term"
+                    : undefined
+              }
+            >
+              <select
+                value={form.optionalFeeAssignId}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, optionalFeeAssignId: e.target.value }))
+                }
+                style={inputStyle}
+                disabled={assignLoading || studentAssigns.length === 0}
+              >
+                <option value="">Select optional fee…</option>
+                {studentAssigns.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.optionalFee.name} (Fee: {fmt(a.optionalFee.amount)}, Balance: {fmt(a.balance)})
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          )}
+
+          {/* Optional Fee live balance hint */}
+          {feeCategory === "OPTIONAL" && selectedAssign && (
+            <div
+              style={{
+                background: "#fef3c7",
+                border: "1px solid #fde68a",
+                borderRadius: 8,
+                padding: "10px 14px",
+                marginBottom: 14,
+                fontSize: 13,
+              }}
+            >
+              <div style={{ marginBottom: 4, fontWeight: 700, color: "#92400e" }}>
+                ⚡ {selectedAssign.optionalFee.name}
+              </div>
+              <span style={{ color: "#78350f" }}>Fee Amount: </span>
+              <strong>{fmt(selectedAssign.optionalFee.amount)}</strong>
+              <span style={{ color: "#78350f", margin: "0 8px" }}>·</span>
+              <span style={{ color: "#78350f" }}>Already Paid: </span>
+              <strong style={{ color: "#10b981" }}>{fmt(selectedAssign.paid)}</strong>
+              <span style={{ color: "#78350f", margin: "0 8px" }}>·</span>
+              <span style={{ color: "#78350f" }}>Outstanding: </span>
+              <strong style={{ color: selectedAssign.balance > 0 ? "#b45309" : "#10b981" }}>
+                {fmt(selectedAssign.balance)}
+              </strong>
+            </div>
+          )}
+
+          {/* Tuition live balance hint */}
+          {feeCategory === "TUITION" && selectedStudent && form.termId && (
             <div
               style={{
                 background: selectedStudent.hasScholarship ? "#f5f3ff" : "#f9fafb",
@@ -659,10 +1087,13 @@ export default function Payments() {
             </div>
           )}
 
-          <FormField label="Amount Paid (₦)">
+          <FormField
+            label={`Amount Paid (₦)${feeCategory === 'OPTIONAL' && selectedAssign ? ` — max ${fmt(selectedAssign.balance)}` : ''}`}
+          >
             <input
               type="number"
               min="0"
+              max={feeCategory === "OPTIONAL" && selectedAssign ? selectedAssign.balance : undefined}
               value={form.amountPaid}
               onChange={(e) =>
                 setForm((p) => ({ ...p, amountPaid: e.target.value }))
@@ -708,7 +1139,13 @@ export default function Payments() {
             <ActionButton variant="secondary" onClick={() => setModal(false)}>
               Cancel
             </ActionButton>
-            <ActionButton disabled={saving} onClick={record}>
+            <ActionButton
+              disabled={
+                saving ||
+                (feeCategory === "OPTIONAL" && (!form.optionalFeeAssignId || studentAssigns.length === 0))
+              }
+              onClick={record}
+            >
               {saving ? "Recording…" : "Record & Notify"}
             </ActionButton>
           </div>

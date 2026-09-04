@@ -143,6 +143,7 @@ model Student {
   passportPhoto   String?
 
   isActive        Boolean  @default(true)
+  status          String   @default("ACTIVE") // "ACTIVE" | "GRADUATED" | "LEFT" | "SUSPENDED" | "EXPELLED"
   createdAt       DateTime @default(now())
 
   // Scholarship Information

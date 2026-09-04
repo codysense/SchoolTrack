@@ -125,6 +125,7 @@ export default function Results() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ACTIVE");
   const [school, setSchool] = useState(null);
   const [focused, setFocused] = useState(null);
   const [attendance, setAttendance] = useState({
@@ -190,19 +191,23 @@ export default function Results() {
 
   useEffect(() => {
     Promise.all([
-      api("/students"),
       api("/results/subjects"),
       api("/setup/school").catch(() => null),
       api("/classes"),
     ])
-      .then(([s, sub, sch, c]) => {
-        setStudents(s);
+      .then(([sub, sch, c]) => {
         setSubjects(sub);
         setSchool(sch);
         setClasses(c);
       })
       .catch((e) => setError(e.message));
   }, []);
+
+  useEffect(() => {
+    api(`/students?status=${statusFilter}`)
+      .then((s) => setStudents(s))
+      .catch((e) => setError(e.message));
+  }, [statusFilter]);
 
   //console.log("classess", classes);
 
@@ -1325,6 +1330,32 @@ setTimeout(() => window.print(), 500);
                 {c.className}
               </option>
             ))}
+          </select>
+
+          <label
+            style={{
+              display: "block",
+              fontSize: 11,
+              fontWeight: 700,
+              color: "#9ca3af",
+              marginBottom: 6,
+              textTransform: "uppercase",
+              letterSpacing: ".05em",
+            }}
+          >
+            Status
+          </label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{ ...inputStyle, marginBottom: 14, fontSize: 13 }}
+          >
+            <option value="ACTIVE">Active Students</option>
+            <option value="GRADUATED">Graduated</option>
+            <option value="LEFT">Left / Transferred</option>
+            <option value="SUSPENDED">Suspended</option>
+            <option value="EXPELLED">Expelled</option>
+            <option value="ALL">All Statuses</option>
           </select>
 
           <label

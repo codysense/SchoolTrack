@@ -120,21 +120,77 @@ router.get("/summary", staffOnly, async (req, res) => {
   });
 });
 
-// ── GET all school-fee payments for a term ────────────────────────────────────
+// ── GET all payments (school-fee and optional) for a term ─────────────────────
 router.get("/", staffOnly, async (req, res) => {
-  const { termId } = req.query;
-  const payments = await prisma.payment.findMany({
-    where: termId ? { termId } : undefined,
-    include: {
-      student: { include: { class: true } },
-      term: { include: { session: true } },
-    },
+  const { termId, type, status } = req.query;
 
-    orderBy: { date: "desc" },
-    take: 300,
-  });
+  let statusWhere = {};
+  if (status && status.toUpperCase() !== "ALL") {
+    statusWhere = { status: status.toUpperCase() };
+  } else if (!status) {
+    statusWhere = { status: "ACTIVE" };
+  }
 
-  res.json(payments);
+  const [tuitionPayments, optPayments] = await Promise.all([
+    type === "optional"
+      ? []
+      : prisma.payment.findMany({
+          where: {
+            ...(termId ? { termId } : {}),
+            ...(Object.keys(statusWhere).length ? { student: statusWhere } : {}),
+          },
+          include: {
+            student: { include: { class: true } },
+            term: { include: { session: true } },
+          },
+          orderBy: { date: "desc" },
+          take: 300,
+        }),
+    type === "tuition"
+      ? []
+      : prisma.optionalFeePayment.findMany({
+          where: {
+            ...(termId ? { optionalFeeAssign: { termId } } : {}),
+            ...(Object.keys(statusWhere).length ? { student: statusWhere } : {}),
+          },
+          include: {
+            student: { include: { class: true } },
+            optionalFeeAssign: {
+              include: { optionalFee: true, term: { include: { session: true } } },
+            },
+          },
+          orderBy: { date: "desc" },
+          take: 300,
+        }),
+  ]);
+
+  const formattedTuition = tuitionPayments.map((p) => ({
+    ...p,
+    paymentType: "TUITION",
+    feeName: "Tuition / School Fees",
+  }));
+
+  const formattedOpt = optPayments.map((p) => ({
+    id: p.id,
+    studentId: p.studentId,
+    student: p.student,
+    termId: p.optionalFeeAssign?.termId,
+    term: p.optionalFeeAssign?.term,
+    amountPaid: p.amountPaid,
+    paymentMethod: p.paymentMethod,
+    note: p.note,
+    date: p.date,
+    createdAt: p.createdAt,
+    paymentType: "OPTIONAL",
+    feeName: p.optionalFeeAssign?.optionalFee?.name || "Optional Fee",
+    optionalFeeAssign: p.optionalFeeAssign,
+  }));
+
+  const all = [...formattedTuition, ...formattedOpt].sort(
+    (a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt),
+  );
+
+  res.json(all);
 });
 
 // ── POST record a school-fee payment ─────────────────────────────────────────

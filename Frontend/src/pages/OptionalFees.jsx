@@ -9,24 +9,29 @@ const METHODS = ['cash', 'transfer', 'card', 'POS']
 export default function OptionalFees() {
   const { currentTerm, sessions } = useTerm()
 
-  const [fees,     setFees]     = useState([])
-  const [students, setStudents] = useState([])
-  const [assigns,  setAssigns]  = useState([])
-  const [loading,  setLoading]  = useState(true)
-  const [error,    setError]    = useState(null)
-  const [tab,      setTab]      = useState('types')
+  const [fees,          setFees]          = useState([])
+  const [students,      setStudents]      = useState([])
+  const [classes,       setClasses]       = useState([])
+  const [assigns,       setAssigns]       = useState([])
+  const [loading,       setLoading]       = useState(true)
+  const [error,         setError]         = useState(null)
+  const [tab,           setTab]           = useState('types')
 
   // Modals
-  const [feeModal,    setFeeModal]    = useState(null)
-  const [assignModal, setAssignModal] = useState(false)
-  const [payModal,    setPayModal]    = useState(null)
+  const [feeModal,      setFeeModal]      = useState(null)
+  const [assignModal,   setAssignModal]   = useState(false)
+  const [payModal,      setPayModal]      = useState(null)
 
-  const [feeForm,    setFeeForm]    = useState({ name: '', amount: '', description: '' })
-  const [assignForm, setAssignForm] = useState({ optionalFeeId: '', studentIds: [], termId: '' })
-  const [payForm,    setPayForm]    = useState({ amountPaid: '', paymentMethod: 'cash', note: '' })
-  const [saving,     setSaving]     = useState(false)
-  const [formErr,    setFormErr]    = useState('')
-  const [filterTermId, setFilterTermId] = useState('')
+  const [feeForm,       setFeeForm]       = useState({ name: '', amount: '', description: '' })
+  const [assignForm,    setAssignForm]    = useState({ optionalFeeId: '', studentIds: [], termId: '' })
+  const [assignClassId, setAssignClassId] = useState('')
+  const [payForm,       setPayForm]       = useState({ amountPaid: '', paymentMethod: 'cash', note: '' })
+  const [saving,        setSaving]        = useState(false)
+  const [formErr,       setFormErr]       = useState('')
+  const [filterTermId,  setFilterTermId]  = useState('')
+  const [filterClassId, setFilterClassId] = useState('')
+  const [filterStatus,  setFilterStatus]  = useState('ACTIVE')
+  const [search,        setSearch]        = useState('')
 
   const allTerms = sessions.flatMap(s =>
     s.terms.map(t => ({ ...t, sessionName: s.name, label: `${s.name} — ${t.name}${t.isCurrent ? ' ✓' : ''}` }))
@@ -34,19 +39,23 @@ export default function OptionalFees() {
 
   const load = () => {
     setLoading(true)
-    const assignUrl = filterTermId
-      ? `/optional-fees/assigns?termId=${filterTermId}`
-      : '/optional-fees/assigns'
+    const params = new URLSearchParams()
+    if (filterTermId) params.set('termId', filterTermId)
+    if (filterClassId) params.set('classId', filterClassId)
+    if (filterStatus) params.set('status', filterStatus)
+    const assignUrl = `/optional-fees/assigns?${params.toString()}`
+
     Promise.all([
       api('/optional-fees/types'),
-      api('/students'),
+      api('/students?status=ACTIVE'),
+      api('/classes'),
       api(assignUrl)
     ])
-      .then(([f, s, a]) => { setFees(f); setStudents(s); setAssigns(a) })
+      .then(([f, s, c, a]) => { setFees(f); setStudents(s); setClasses(c); setAssigns(a) })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }
-  useEffect(() => { load() }, [filterTermId])
+  useEffect(() => { load() }, [filterTermId, filterClassId, filterStatus])
 
   // ── Fee type actions ────────────────────────────────────────────────────────
   const openFeeCreate = () => {
@@ -82,6 +91,7 @@ export default function OptionalFees() {
   // ── Assign actions ──────────────────────────────────────────────────────────
   const openAssign = () => {
     setAssignForm({ optionalFeeId: '', studentIds: [], termId: currentTerm?.id || '' })
+    setAssignClassId('')
     setFormErr(''); setAssignModal(true)
   }
 
@@ -200,14 +210,41 @@ export default function OptionalFees() {
       {/* ── Assignments ── */}
       {tab === 'assigns' && (
         <>
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+            <input
+              type="text"
+              placeholder="🔍 Search student, class, or fee…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ ...inputStyle, maxWidth: 260, fontSize: 13 }}
+            />
+            <select
+              value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value)}
+              style={{ ...inputStyle, maxWidth: 170, fontSize: 13 }}
+            >
+              <option value="ACTIVE">Active Students</option>
+              <option value="GRADUATED">Graduated</option>
+              <option value="LEFT">Left / Transferred</option>
+              <option value="SUSPENDED">Suspended</option>
+              <option value="EXPELLED">Expelled</option>
+              <option value="ALL">All Statuses</option>
+            </select>
             <select
               value={filterTermId}
               onChange={e => setFilterTermId(e.target.value)}
-              style={{ ...inputStyle, maxWidth: 260, fontSize: 13 }}
+              style={{ ...inputStyle, maxWidth: 220, fontSize: 13 }}
             >
               <option value="">All terms</option>
               {allTerms.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+            <select
+              value={filterClassId}
+              onChange={e => setFilterClassId(e.target.value)}
+              style={{ ...inputStyle, maxWidth: 180, fontSize: 13 }}
+            >
+              <option value="">All classes</option>
+              {classes.map(c => <option key={c.id} value={c.id}>{c.className}</option>)}
             </select>
           </div>
 
@@ -222,7 +259,18 @@ export default function OptionalFees() {
                   </tr>
                 </thead>
                 <tbody>
-                  {assigns.map(a => (
+                  {assigns
+                    .filter(a => {
+                      if (!search.trim()) return true;
+                      const q = search.toLowerCase();
+                      return (
+                        a.student?.name?.toLowerCase().includes(q) ||
+                        a.student?.admissionNumber?.toLowerCase().includes(q) ||
+                        a.student?.class?.className?.toLowerCase().includes(q) ||
+                        a.optionalFee?.name?.toLowerCase().includes(q)
+                      );
+                    })
+                    .map(a => (
                     <tr key={a.id} style={{ borderTop: '1px solid #f3f4f6' }}>
                       <td style={{ padding: '10px 14px', fontWeight: 500 }}>{a.student.name}</td>
                       <td style={{ padding: '10px 14px', color: '#6b7280', fontSize: 13 }}>{a.student.class.className}</td>
@@ -246,9 +294,18 @@ export default function OptionalFees() {
                       </td>
                     </tr>
                   ))}
-                  {assigns.length === 0 && (
+                  {assigns.filter(a => {
+                    if (!search.trim()) return true;
+                    const q = search.toLowerCase();
+                    return (
+                      a.student?.name?.toLowerCase().includes(q) ||
+                      a.student?.admissionNumber?.toLowerCase().includes(q) ||
+                      a.student?.class?.className?.toLowerCase().includes(q) ||
+                      a.optionalFee?.name?.toLowerCase().includes(q)
+                    );
+                  }).length === 0 && (
                     <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>
-                      No assignments{filterTermId ? ' for this term' : ''}
+                      No assignments{filterTermId || filterClassId ? ' matching filters' : ''}
                     </td></tr>
                   )}
                 </tbody>
@@ -297,16 +354,66 @@ export default function OptionalFees() {
               {allTerms.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
           </FormField>
-          <FormField label={`Students (${assignForm.studentIds.length} selected)`} hint="Hold Ctrl / Cmd to select multiple">
+          <FormField label="Filter Students by Class (optional)">
+            <select
+              value={assignClassId}
+              onChange={e => setAssignClassId(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="">All classes</option>
+              {classes.map(c => <option key={c.id} value={c.id}>{c.className}</option>)}
+            </select>
+          </FormField>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+              Students ({assignForm.studentIds.length} selected)
+            </span>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const eligible = students
+                    .filter(s => !assignClassId || s.classId === assignClassId)
+                    .map(s => s.id)
+                  setAssignForm(p => ({ ...p, studentIds: Array.from(new Set([...p.studentIds, ...eligible])) }))
+                }}
+                style={{
+                  fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600
+                }}
+              >
+                + Select All {assignClassId ? 'in Class' : ''}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (assignClassId) {
+                    const classStudentIds = new Set(students.filter(s => s.classId === assignClassId).map(s => s.id))
+                    setAssignForm(p => ({ ...p, studentIds: p.studentIds.filter(id => !classStudentIds.has(id)) }))
+                  } else {
+                    setAssignForm(p => ({ ...p, studentIds: [] }))
+                  }
+                }}
+                style={{
+                  fontSize: 12, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600
+                }}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          <FormField hint="Hold Ctrl / Cmd to select multiple or use shortcuts above">
             <select
               multiple
               value={assignForm.studentIds}
               onChange={e => setAssignForm(p => ({ ...p, studentIds: Array.from(e.target.selectedOptions, o => o.value) }))}
-              style={{ ...inputStyle, height: 200 }}
+              style={{ ...inputStyle, height: 180 }}
             >
-              {students.map(s => (
-                <option key={s.id} value={s.id}>{s.name} ({s.class.className}) — {s.admissionNumber}</option>
-              ))}
+              {students
+                .filter(s => !assignClassId || s.classId === assignClassId)
+                .map(s => (
+                  <option key={s.id} value={s.id}>{s.name} ({s.class.className}) — {s.admissionNumber}</option>
+                ))}
             </select>
           </FormField>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>

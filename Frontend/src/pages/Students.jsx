@@ -45,6 +45,8 @@ const empty = {
   scholarshipTarget: "TUITION",
   scholarshipReason: "",
 
+  status: "ACTIVE",
+
   passportPhoto: null,
   // existingPassportPhoto: "",
 };
@@ -64,6 +66,7 @@ export default function Students() {
   const [formErr, setFormErr] = useState("");
   const [search, setSearch] = useState("");
   const [filterClassId, setFilterClassId] = useState("");
+  const [filterStatus, setFilterStatus] = useState("ACTIVE");
   const [filterTermId, setFilterTermId] = useState(
     currentTerm ? currentTerm.id : "",
   );
@@ -89,6 +92,7 @@ export default function Students() {
     const params = new URLSearchParams();
     if (filterClassId) params.set("classId", filterClassId);
     if (filterTermId) params.set("termId", filterTermId);
+    if (filterStatus) params.set("status", filterStatus);
     Promise.all([api(`/students?${params}`), api("/classes")])
       .then(([s, c, p]) => {
         setStudents(s);
@@ -100,7 +104,7 @@ export default function Students() {
   };
   useEffect(() => {
     load();
-  }, [filterClassId, filterTermId]);
+  }, [filterClassId, filterTermId, filterStatus]);
 
   const openCreate = () => {
     setForm(empty);
@@ -141,6 +145,8 @@ export default function Students() {
       scholarshipValue: s.scholarshipValue ?? "",
       scholarshipTarget: s.scholarshipTarget || "TUITION",
       scholarshipReason: s.scholarshipReason || "",
+
+      status: s.status || (s.isActive ? "ACTIVE" : "LEFT"),
 
       passportPhoto: null, // File object for new upload,
       existingPassportPhoto: s.passportPhoto || "",
@@ -747,6 +753,18 @@ export default function Students() {
           ))}
         </select>
         <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          style={{ ...inputStyle, maxWidth: 170, fontSize: 13 }}
+        >
+          <option value="ACTIVE">Active Students</option>
+          <option value="GRADUATED">Graduated</option>
+          <option value="LEFT">Left / Transferred</option>
+          <option value="SUSPENDED">Suspended</option>
+          <option value="EXPELLED">Expelled</option>
+          <option value="ALL">All Statuses</option>
+        </select>
+        <select
           value={filterTermId}
           onChange={(e) => setFilterTermId(e.target.value)}
           style={{ ...inputStyle, maxWidth: 240, fontSize: 13 }}
@@ -839,7 +857,38 @@ export default function Students() {
                       {s.admissionNumber}
                     </td>
                     <td style={{ padding: "10px 14px", fontWeight: 500 }}>
-                      <div>{s.name}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <span>{s.name}</span>
+                        {s.status && s.status !== "ACTIVE" && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              textTransform: "uppercase",
+                              background:
+                                s.status === "GRADUATED"
+                                  ? "#e0e7ff"
+                                  : s.status === "SUSPENDED"
+                                    ? "#ffedd5"
+                                    : s.status === "EXPELLED"
+                                      ? "#fee2e2"
+                                      : "#f3f4f6",
+                              color:
+                                s.status === "GRADUATED"
+                                  ? "#4338ca"
+                                  : s.status === "SUSPENDED"
+                                    ? "#c2410c"
+                                    : s.status === "EXPELLED"
+                                      ? "#b91c1c"
+                                      : "#4b5563",
+                            }}
+                          >
+                            {s.status}
+                          </span>
+                        )}
+                      </div>
                       {s.hasScholarship && Number(s.scholarshipValue) > 0 && (
                         <span
                           style={{
@@ -1097,6 +1146,25 @@ export default function Students() {
                   }
                   style={inputStyle}
                 />
+              </FormField>
+
+              <FormField label="Student Status">
+                <select
+                  value={form.status || "ACTIVE"}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      status: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                >
+                  <option value="ACTIVE">Active</option>
+                  <option value="GRADUATED">Graduated</option>
+                  <option value="LEFT">Left / Transferred</option>
+                  <option value="SUSPENDED">Suspended</option>
+                  <option value="EXPELLED">Expelled</option>
+                </select>
               </FormField>
             </div>
 

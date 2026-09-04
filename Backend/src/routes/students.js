@@ -98,7 +98,7 @@ async function generateAdmissionNumber(classId) {
 // }
 
 router.get("/", staffOnly, async (req, res) => {
-  const { classId, termId, includeInactive } = req.query;
+  const { classId, termId, includeInactive, status } = req.query;
 
   // Teachers only see their assigned class
   let filterClassId = classId;
@@ -106,10 +106,17 @@ router.get("/", staffOnly, async (req, res) => {
     filterClassId = req.user.teacher.classId;
   }
 
+  let statusWhere = {};
+  if (status && status.toUpperCase() !== "ALL") {
+    statusWhere = { status: status.toUpperCase() };
+  } else if (!status && !includeInactive) {
+    statusWhere = { status: "ACTIVE" };
+  }
+
   const students = await prisma.student.findMany({
     where: {
       ...(filterClassId && { classId: filterClassId }),
-      ...(!includeInactive && { isActive: true }),
+      ...statusWhere,
     },
     include: {
       class: true,
@@ -346,6 +353,9 @@ router.post(
         scholarshipValue,
         scholarshipTarget,
         scholarshipReason,
+
+        status,
+        isActive,
       } = req.body;
 
       if (!admissionNumber?.trim()) {
@@ -353,6 +363,12 @@ router.post(
       }
 
       const isScholarshipActive = hasScholarship === true || hasScholarship === "true";
+
+      let studentStatus = status ? status.trim().toUpperCase() : "ACTIVE";
+      if (isActive !== undefined && (isActive === false || isActive === "false") && studentStatus === "ACTIVE") {
+        studentStatus = "LEFT";
+      }
+      const isStudentActive = studentStatus === "ACTIVE";
 
       const student = await prisma.student.create({
         data: {
@@ -399,6 +415,10 @@ router.post(
               : null,
           scholarshipTarget: isScholarshipActive ? (scholarshipTarget?.trim() || "TUITION") : "TUITION",
           scholarshipReason: isScholarshipActive ? (scholarshipReason?.trim() || null) : null,
+
+          // Status & Activity
+          status: studentStatus,
+          isActive: isStudentActive,
 
           // Media (Saves Cloudinary HTTPS URL)
           passportPhoto: passportPhotoUrl,
@@ -515,6 +535,8 @@ router.put(
         scholarshipValue,
         scholarshipTarget,
         scholarshipReason,
+
+        status,
       } = req.body;
 
       if (!admissionNumber?.trim()) {
@@ -522,6 +544,16 @@ router.put(
       }
 
       const isScholarshipActive = hasScholarship === true || hasScholarship === "true";
+
+      let studentStatus = status ? status.trim().toUpperCase() : (existingStudent?.status || "ACTIVE");
+      if (isActive !== undefined) {
+        if ((isActive === false || isActive === "false") && studentStatus === "ACTIVE") {
+          studentStatus = "LEFT";
+        } else if (isActive === true || isActive === "true") {
+          studentStatus = "ACTIVE";
+        }
+      }
+      const isStudentActive = studentStatus === "ACTIVE";
 
       const student = await prisma.student.update({
         where: { id: req.params.id },
@@ -570,10 +602,12 @@ router.put(
           scholarshipTarget: isScholarshipActive ? (scholarshipTarget?.trim() || "TUITION") : "TUITION",
           scholarshipReason: isScholarshipActive ? (scholarshipReason?.trim() || null) : null,
 
+          // Status & Activity
+          status: studentStatus,
+          isActive: isStudentActive,
+
           // Media (Saves Cloudinary HTTPS URL)
           passportPhoto: passportPhotoUrl,
-
-          ...(isActive !== undefined && { isActive }),
         },
         include: { class: true },
       });
