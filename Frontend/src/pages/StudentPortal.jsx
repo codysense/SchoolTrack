@@ -133,6 +133,31 @@ Thank you.
         </tr>
       `;
 
+      const assignedOptFees = history.optFees || targetTermObj?.optAssigns || [];
+      const assignedOptionalFeeRows = assignedOptFees.length
+        ? assignedOptFees
+            .map(
+              (f, index) => `
+          <tr>
+            <td>${index + 1}</td>
+            <td><strong>${f.name}</strong>${f.description ? `<br><small style="color:#6b7280">${f.description}</small>` : ""}</td>
+            <td style="text-align:left">₦${Number(f.amount || 0).toLocaleString()}</td>
+            <td style="text-align:left;color:#10b981">₦${Number(f.paid || 0).toLocaleString()}</td>
+            <td style="text-align:left;color:${f.balance > 0 ? "#f59e0b" : "#10b981"};font-weight:600">
+              ₦${Number(f.balance || 0).toLocaleString()}
+            </td>
+          </tr>
+        `,
+            )
+            .join("")
+        : `
+        <tr>
+          <td colspan="5" style="text-align:center;color:#6b7280">
+            No optional fees assigned for this term
+          </td>
+        </tr>
+      `;
+
       const optionalFeeRows = optionalPayments.length
         ? optionalPayments
             .map(
@@ -436,6 +461,26 @@ Thank you.
 
           <tbody>
             ${schoolFeeRows}
+          </tbody>
+        </table>
+
+        <div class="section-title">
+          Assigned Optional Fees Breakdown (Bill Items)
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Optional Fee Item</th>
+              <th>Amount (₦)</th>
+              <th>Amount Paid (₦)</th>
+              <th>Remaining Balance (₦)</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${assignedOptionalFeeRows}
           </tbody>
         </table>
 

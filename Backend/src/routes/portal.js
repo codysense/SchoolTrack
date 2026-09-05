@@ -381,7 +381,10 @@ router.get("/payments", async (req, res) => {
       studentId: req.user.id,
       ...(termId && { termId }),
     },
-    include: { optionalFee: true },
+    include: {
+      optionalFee: true,
+      payments: true,
+    },
   });
 
   const optFeeExpectedBase = optFees.reduce((s, a) => s + a.optionalFee.amount, 0);
@@ -391,9 +394,22 @@ router.get("/payments", async (req, res) => {
   const optFeePaid = optPayments.reduce((s, p) => s + p.amountPaid, 0);
   const optFeeBalance = optFeeExpected - optFeePaid;
 
+  const enrichedOptFees = optFees.map((a) => {
+    const paid = a.payments.reduce((s, p) => s + p.amountPaid, 0);
+    return {
+      id: a.id,
+      name: a.optionalFee.name,
+      description: a.optionalFee.description,
+      amount: a.optionalFee.amount,
+      paid,
+      balance: a.optionalFee.amount - paid,
+    };
+  });
+
   res.json({
     payments,
     optPayments,
+    optFees: enrichedOptFees,
     optFeeExpected,
     optFeePaid,
     optFeeBalance,

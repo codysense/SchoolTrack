@@ -172,11 +172,18 @@ router.get("/", staffOnly, async (req, res) => {
 
 // GET single student
 router.get("/:id", staffOnly, async (req, res) => {
+  const currentTerm = await prisma.term.findFirst({
+    where: { isCurrent: true },
+    include: { session: true },
+  });
+
   const student = await prisma.student.findUnique({
     where: { id: req.params.id },
     include: {
       class: true,
-      studentTermFees: true,
+      studentTermFees: {
+        include: { term: { include: { session: true } } },
+      },
       payments: {
         orderBy: { date: "desc" },
         include: { term: { include: { session: true } } },
@@ -193,38 +200,148 @@ router.get("/:id", staffOnly, async (req, res) => {
 
   if (!student) return res.status(404).json({ error: "Student not found" });
 
-  const schoolPaid = student.payments.reduce((s, p) => s + p.amountPaid, 0);
-  const optExpectedBase = student.optionalFeeAssigns.reduce(
-    (s, a) => s + a.optionalFee.amount,
-    0,
-  );
-  const optPaid = student.optionalFeeAssigns.reduce(
+  // Collect distinct termIds for this student
+  const termIdSet = new Set([
+    ...student.payments.map((p) => p.termId).filter(Boolean),
+    ...student.optionalFeeAssigns.map((a) => a.termId).filter(Boolean),
+    ...student.studentTermFees.map((tf) => tf.termId).filter(Boolean),
+  ]);
+
+  // Always include the current active term if one exists
+  if (currentTerm) {
+    termIdSet.add(currentTerm.id);
+  }
+
+  const terms = [];
+  for (const termId of termIdSet) {
+    if (!termId) continue;
+
+    const schoolPayments = student.payments.filter((p) => p.termId === termId);
+    const schoolPaid = schoolPayments.reduce((s, p) => s + p.amountPaid, 0);
+
+    const optAssigns = student.optionalFeeAssigns.filter(
+      (a) => a.termId === termId,
+    );
+    const optExpectedBase = optAssigns.reduce(
+      (s, a) => s + a.optionalFee.amount,
+      0,
+    );
+    const optPaid = optAssigns.reduce(
+      (s, a) => s + a.payments.reduce((sp, p) => sp + p.amountPaid, 0),
+      0,
+    );
+
+    const termSnapshot =
+      student.studentTermFees?.find((tf) => tf.termId === termId) || null;
+    const breakdown = calculateStudentFeeBreakdown(
+      student,
+      optExpectedBase,
+      termSnapshot,
+    );
+
+    const schoolFee = breakdown.expectedSchoolFee;
+    const schoolBalance = schoolFee - schoolPaid;
+
+    const optExpected = breakdown.expectedOptFee;
+    const optBalance = optExpected - optPaid;
+
+    const totalFee = breakdown.totalExpectedFee;
+    const termTotalPaid = schoolPaid + optPaid;
+    const totalBalance = totalFee - termTotalPaid;
+
+    const termRef =
+      schoolPayments[0]?.term ||
+      optAssigns[0]?.term ||
+      termSnapshot?.term ||
+      (currentTerm?.id === termId ? currentTerm : null) ||
+      (await prisma.term.findUnique({
+        where: { id: termId },
+        include: { session: true },
+      }));
+
+    const termName = termRef?.name || "Unknown term";
+    const sessionName = termRef?.session?.name || "";
+
+    terms.push({
+      termId,
+      termName,
+      sessionName,
+      termLabel: `${sessionName} — ${termName}`,
+      isCurrent: currentTerm?.id === termId,
+      schoolFee,
+      baseSchoolFee: breakdown.baseSchoolFee,
+      schoolFeeDiscount: breakdown.schoolFeeDiscount,
+      schoolPaid,
+      schoolBalance,
+      optExpected,
+      baseOptExpected: breakdown.baseOptFee,
+      optFeeDiscount: breakdown.optFeeDiscount,
+      optPaid,
+      optBalance,
+      totalFee,
+      baseTotalFee: breakdown.baseTotalFee,
+      totalDiscount: breakdown.totalDiscount,
+      totalPaid: termTotalPaid,
+      totalBalance,
+      hasScholarship: breakdown.hasScholarship,
+      scholarshipType: breakdown.scholarshipType,
+      scholarshipValue: breakdown.scholarshipValue,
+      scholarshipTarget: breakdown.scholarshipTarget,
+      scholarshipReason: breakdown.scholarshipReason,
+      schoolPayments,
+      optAssigns: optAssigns.map((a) => {
+        const paid = a.payments.reduce((s, p) => s + p.amountPaid, 0);
+        return {
+          id: a.id,
+          name: a.optionalFee.name,
+          amount: a.optionalFee.amount,
+          description: a.optionalFee.description,
+          paid,
+          balance: a.optionalFee.amount - paid,
+          payments: a.payments,
+        };
+      }),
+    });
+  }
+
+  // Sort terms: current term first, then by term label
+  terms.sort((a, b) => {
+    if (a.isCurrent) return -1;
+    if (b.isCurrent) return 1;
+    return a.termLabel.localeCompare(b.termLabel);
+  });
+
+  // Cumulative totals across all past and present terms
+  const cumulativeSchoolFeeExpected = terms.reduce((s, t) => s + t.schoolFee, 0);
+  const cumulativeOptFeeExpected = terms.reduce((s, t) => s + t.optExpected, 0);
+  const cumulativeTotalExpected = terms.reduce((s, t) => s + t.totalFee, 0);
+
+  const cumulativeSchoolPaid = student.payments.reduce((s, p) => s + p.amountPaid, 0);
+  const cumulativeOptPaid = student.optionalFeeAssigns.reduce(
     (s, a) => s + a.payments.reduce((sp, p) => sp + p.amountPaid, 0),
     0,
   );
-
-  const breakdown = calculateStudentFeeBreakdown(student, optExpectedBase);
-  const totalPaid = schoolPaid + optPaid;
+  const cumulativeTotalPaid = cumulativeSchoolPaid + cumulativeOptPaid;
+  const cumulativeTotalBalance = cumulativeTotalExpected - cumulativeTotalPaid;
 
   res.json({
     ...student,
-    schoolPaid,
-    optPaid,
-    totalPaid,
-    schoolFee: breakdown.expectedSchoolFee,
-    baseSchoolFee: breakdown.baseSchoolFee,
-    schoolFeeDiscount: breakdown.schoolFeeDiscount,
-    optFeeDiscount: breakdown.optFeeDiscount,
-    totalDiscount: breakdown.totalDiscount,
-    optExpected: breakdown.expectedOptFee,
-    baseOptExpected: breakdown.baseOptFee,
-    totalFee: breakdown.totalExpectedFee,
-    baseTotalFee: breakdown.baseTotalFee,
-    balance: breakdown.totalExpectedFee - totalPaid,
-    schoolFeeBalance: breakdown.expectedSchoolFee - schoolPaid,
-    optFeeBalance: breakdown.expectedOptFee - optPaid,
+    currentTermId: currentTerm?.id || null,
+    terms,
+    // Lifetime / Cumulative across past & present terms
+    schoolFee: cumulativeSchoolFeeExpected,
+    optExpected: cumulativeOptFeeExpected,
+    totalFee: cumulativeTotalExpected,
+    expectedPayment: cumulativeTotalExpected,
+    schoolPaid: cumulativeSchoolPaid,
+    optPaid: cumulativeOptPaid,
+    totalPaid: cumulativeTotalPaid,
+    balance: cumulativeTotalBalance,
+    schoolFeeBalance: cumulativeSchoolFeeExpected - cumulativeSchoolPaid,
+    optFeeBalance: cumulativeOptFeeExpected - cumulativeOptPaid,
   });
 });
+
 //Get Student payment (including optional fees) history for a term
 router.get("/:id/payments", staffOnly, async (req, res) => {
   const { termId } = req.query;
@@ -238,9 +355,21 @@ router.get("/:id/payments", staffOnly, async (req, res) => {
 
   // 1. Fetch term snapshot if termId provided
   let termSnapshot = null;
+  let term = null;
   if (termId) {
-    termSnapshot = await prisma.studentTermFee.findUnique({
-      where: { studentId_termId: { studentId: req.params.id, termId } },
+    [termSnapshot, term] = await Promise.all([
+      prisma.studentTermFee.findUnique({
+        where: { studentId_termId: { studentId: req.params.id, termId } },
+      }),
+      prisma.term.findUnique({
+        where: { id: termId },
+        include: { session: true },
+      }),
+    ]);
+  } else {
+    term = await prisma.term.findFirst({
+      where: { isCurrent: true },
+      include: { session: true },
     });
   }
 
@@ -281,7 +410,10 @@ router.get("/:id/payments", staffOnly, async (req, res) => {
       studentId: req.params.id,
       ...(termId && { termId }),
     },
-    include: { optionalFee: true },
+    include: {
+      optionalFee: true,
+      payments: true,
+    },
   });
 
   //Get total Optional fees assigned to the student for the term
@@ -293,13 +425,36 @@ router.get("/:id/payments", staffOnly, async (req, res) => {
   const optFeePaid = optPayments.reduce((s, p) => s + p.amountPaid, 0);
   const optFeeBalance = optFeeExpected - optFeePaid;
 
+  const enrichedOptFees = optFees.map((a) => {
+    const paid = a.payments.reduce((s, p) => s + p.amountPaid, 0);
+    return {
+      id: a.id,
+      name: a.optionalFee.name,
+      description: a.optionalFee.description,
+      amount: a.optionalFee.amount,
+      paid,
+      balance: a.optionalFee.amount - paid,
+    };
+  });
+
   res.json({
     payments,
     optPayments,
+    optFees: enrichedOptFees,
     optFeeExpected,
     optFeePaid,
     optFeeBalance,
+    classFee: breakdown.expectedSchoolFee,
+    baseClassFee: breakdown.baseSchoolFee,
     breakdown,
+    term: term
+      ? {
+          id: term.id,
+          name: term.name,
+          sessionName: term.session?.name || "",
+          isCurrent: term.isCurrent,
+        }
+      : null,
   });
 });
 
