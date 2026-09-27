@@ -132,7 +132,7 @@ router.get("/", staffOnly, async (req, res) => {
   const data = students.map((s) => {
     const schoolPaid = s.payments.reduce((sum, p) => sum + p.amountPaid, 0);
     const optExpectedBase = s.optionalFeeAssigns.reduce(
-      (sum, a) => sum + a.optionalFee.amount,
+      (sum, a) => sum + (a.amount !== null && a.amount !== undefined ? a.amount : a.optionalFee.amount),
       0,
     );
     const optPaid = s.optionalFeeAssigns.reduce(
@@ -223,7 +223,7 @@ router.get("/:id", staffOnly, async (req, res) => {
       (a) => a.termId === termId,
     );
     const optExpectedBase = optAssigns.reduce(
-      (s, a) => s + a.optionalFee.amount,
+      (s, a) => s + (a.amount !== null && a.amount !== undefined ? a.amount : a.optionalFee.amount),
       0,
     );
     const optPaid = optAssigns.reduce(
@@ -290,14 +290,15 @@ router.get("/:id", staffOnly, async (req, res) => {
       scholarshipReason: breakdown.scholarshipReason,
       schoolPayments,
       optAssigns: optAssigns.map((a) => {
+        const feeAmount = a.amount !== null && a.amount !== undefined ? a.amount : a.optionalFee.amount;
         const paid = a.payments.reduce((s, p) => s + p.amountPaid, 0);
         return {
           id: a.id,
           name: a.optionalFee.name,
-          amount: a.optionalFee.amount,
+          amount: feeAmount,
           description: a.optionalFee.description,
           paid,
-          balance: a.optionalFee.amount - paid,
+          balance: feeAmount - paid,
           payments: a.payments,
         };
       }),

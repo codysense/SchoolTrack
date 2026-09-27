@@ -79,10 +79,22 @@ export function calculateStudentFeeBreakdown(student, optExpected = 0, termSnaps
 }
 
 /**
+ * Returns the effective amount for an optional fee assignment,
+ * preferring the frozen assignment amount, falling back to fee template amount.
+ */
+export function getOptionalFeeAssignAmount(assign) {
+  if (!assign) return 0;
+  if (assign.amount !== null && assign.amount !== undefined) {
+    return Number(assign.amount);
+  }
+  return Number(assign.optionalFee?.amount || 0);
+}
+
+/**
  * Retrieves the locked StudentTermFee snapshot for a student in a term,
  * or locks and creates one using student's current scholarship profile if not already locked.
  */
-export async function getOrLockStudentTermFee(prisma, studentId, termId, student = null) {
+export async function getOrLockStudentTermFee(prisma, studentId, termId, student = null, customBaseFee = null) {
   if (!studentId || !termId) return null;
 
   // 1. Check if snapshot already exists
@@ -100,8 +112,8 @@ export async function getOrLockStudentTermFee(prisma, studentId, termId, student
   }
   if (!student || !student.class) return null;
 
-  const baseSchoolFee = Number(student.class.feeAmount || 0);
-  const breakdown = calculateStudentFeeBreakdown(student, 0);
+  const baseSchoolFee = customBaseFee !== null ? Number(customBaseFee) : Number(student.class.feeAmount || 0);
+  const breakdown = calculateStudentFeeBreakdown({ ...student, class: { ...student.class, feeAmount: baseSchoolFee } }, 0);
 
   const snapshot = await prisma.studentTermFee.create({
     data: {
@@ -120,3 +132,67 @@ export async function getOrLockStudentTermFee(prisma, studentId, termId, student
 
   return snapshot;
 }
+
+/**
+ * Seals/locks snapshots for all active students for a given term.
+ */
+export async function lockAllStudentsTermFee(prisma, termId) {
+  if (!termId) return;
+
+  const students = await prisma.student.findMany({
+    where: { status: "ACTIVE" },
+    include: {
+      class: true,
+      studentTermFees: { where: { termId } },
+    },
+  });
+
+  for (const s of students) {
+    if (!s.class) continue;
+    if (!s.studentTermFees || s.studentTermFees.length === 0) {
+      await getOrLockStudentTermFee(prisma, s.id, termId, s);
+    }
+  }
+}
+
+/**
+ * Updates or creates student term fee snapshots ONLY for a specific term (e.g. current term)
+ * when a class fee changes, without touching past terms.
+ */
+export async function updateClassTermFee(prisma, classId, termId, newFeeAmount) {
+  if (!classId || !termId) return;
+
+  const students = await prisma.student.findMany({
+    where: { classId, status: "ACTIVE" },
+    include: { class: true, studentTermFees: { where: { termId } } },
+  });
+
+  for (const s of students) {
+    const breakdown = calculateStudentFeeBreakdown(
+      { ...s, class: { ...s.class, feeAmount: Number(newFeeAmount) } },
+      0
+    );
+
+    await prisma.studentTermFee.upsert({
+      where: { studentId_termId: { studentId: s.id, termId } },
+      create: {
+        studentId: s.id,
+        termId,
+        baseSchoolFee: Number(newFeeAmount),
+        hasScholarship: breakdown.hasScholarship,
+        scholarshipType: breakdown.hasScholarship ? breakdown.scholarshipType : null,
+        scholarshipValue: breakdown.hasScholarship ? breakdown.scholarshipValue : null,
+        scholarshipTarget: breakdown.hasScholarship ? breakdown.scholarshipTarget : "TUITION",
+        scholarshipReason: breakdown.hasScholarship ? breakdown.scholarshipReason : null,
+        discountAmount: breakdown.schoolFeeDiscount,
+        expectedSchoolFee: breakdown.expectedSchoolFee,
+      },
+      update: {
+        baseSchoolFee: Number(newFeeAmount),
+        discountAmount: breakdown.schoolFeeDiscount,
+        expectedSchoolFee: breakdown.expectedSchoolFee,
+      },
+    });
+  }
+}
+

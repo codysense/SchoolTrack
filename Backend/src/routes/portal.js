@@ -196,7 +196,7 @@ router.get("/me", async (req, res) => {
       (a) => a.termId === termId,
     );
     const optExpectedBase = optAssigns.reduce(
-      (s, a) => s + a.optionalFee.amount,
+      (s, a) => s + (a.amount !== null && a.amount !== undefined ? a.amount : a.optionalFee.amount),
       0,
     );
     const optPaid = optAssigns.reduce(
@@ -267,15 +267,17 @@ router.get("/me", async (req, res) => {
         date: p.date,
         note: p.note,
       })),
-      optAssigns: optAssigns.map((a) => ({
-        id: a.id,
-        name: a.optionalFee.name,
-        amount: a.optionalFee.amount,
-        paid: a.payments.reduce((s, p) => s + p.amountPaid, 0),
-        balance:
-          a.optionalFee.amount -
-          a.payments.reduce((s, p) => s + p.amountPaid, 0),
-      })),
+      optAssigns: optAssigns.map((a) => {
+        const feeAmount = a.amount !== null && a.amount !== undefined ? a.amount : a.optionalFee.amount;
+        const paid = a.payments.reduce((s, p) => s + p.amountPaid, 0);
+        return {
+          id: a.id,
+          name: a.optionalFee.name,
+          amount: feeAmount,
+          paid,
+          balance: feeAmount - paid,
+        };
+      }),
     });
   }
 
@@ -387,7 +389,10 @@ router.get("/payments", async (req, res) => {
     },
   });
 
-  const optFeeExpectedBase = optFees.reduce((s, a) => s + a.optionalFee.amount, 0);
+  const optFeeExpectedBase = optFees.reduce(
+    (s, a) => s + (a.amount !== null && a.amount !== undefined ? a.amount : a.optionalFee.amount),
+    0
+  );
   const breakdown = calculateStudentFeeBreakdown(student, optFeeExpectedBase, termSnapshot);
 
   const optFeeExpected = breakdown.expectedOptFee;
@@ -395,14 +400,15 @@ router.get("/payments", async (req, res) => {
   const optFeeBalance = optFeeExpected - optFeePaid;
 
   const enrichedOptFees = optFees.map((a) => {
+    const feeAmount = a.amount !== null && a.amount !== undefined ? a.amount : a.optionalFee.amount;
     const paid = a.payments.reduce((s, p) => s + p.amountPaid, 0);
     return {
       id: a.id,
       name: a.optionalFee.name,
       description: a.optionalFee.description,
-      amount: a.optionalFee.amount,
+      amount: feeAmount,
       paid,
-      balance: a.optionalFee.amount - paid,
+      balance: feeAmount - paid,
     };
   });
 
@@ -453,7 +459,7 @@ router.get("/results/:studentId", async (req, res) => {
 
   const schoolPaid = student.payments.reduce((s, p) => s + p.amountPaid, 0);
   const optExpectedBase = student.optionalFeeAssigns.reduce(
-    (s, a) => s + a.optionalFee.amount,
+    (s, a) => s + (a.amount !== null && a.amount !== undefined ? a.amount : a.optionalFee.amount),
     0,
   );
   const optPaid = student.optionalFeeAssigns.reduce(

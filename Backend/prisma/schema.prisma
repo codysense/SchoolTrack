@@ -239,6 +239,7 @@ model OptionalFeeAssign {
   optionalFee   OptionalFee        @relation(fields: [optionalFeeId], references: [id], onDelete: Cascade)
   termId        String
   term          Term               @relation(fields: [termId], references: [id])
+  amount        Float?
   createdAt     DateTime           @default(now())
   payments      OptionalFeePayment[]
 

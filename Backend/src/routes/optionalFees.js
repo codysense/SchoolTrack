@@ -33,11 +33,46 @@ router.post('/types', adminOnly, async (req, res) => {
 
 router.put('/types/:id', adminOnly, async (req, res) => {
   const { name, amount, description } = req.body
+  const parsedAmount = parseFloat(amount)
+
+  const currentTerm = await prisma.term.findFirst({
+    where: { isCurrent: true },
+  })
+
+  // Ensure any past term assignments have their amount locked before changing template amount
+  const pastAssigns = await prisma.optionalFeeAssign.findMany({
+    where: {
+      optionalFeeId: req.params.id,
+      amount: null,
+      ...(currentTerm ? { termId: { not: currentTerm.id } } : {}),
+    },
+    include: { optionalFee: true },
+  })
+
+  for (const pa of pastAssigns) {
+    await prisma.optionalFeeAssign.update({
+      where: { id: pa.id },
+      data: { amount: pa.optionalFee.amount },
+    })
+  }
+
   const fee = await prisma.optionalFee.update({
     where: { id: req.params.id },
-    data: { name: name.trim(), amount: parseFloat(amount), description: description || null }
+    data: { name: name.trim(), amount: parsedAmount, description: description || null }
   })
-  await log({ req, action: 'UPDATE', entity: 'OptionalFee', entityId: fee.id, detail: `Updated optional fee "${fee.name}"` })
+
+  // Update current term assignments to new amount if current term is active
+  if (currentTerm) {
+    await prisma.optionalFeeAssign.updateMany({
+      where: {
+        optionalFeeId: req.params.id,
+        termId: currentTerm.id,
+      },
+      data: { amount: parsedAmount },
+    })
+  }
+
+  await log({ req, action: 'UPDATE', entity: 'OptionalFee', entityId: fee.id, detail: `Updated optional fee "${fee.name}" to ₦${parsedAmount}` })
   res.json(fee)
 })
 
@@ -81,9 +116,19 @@ router.get('/assigns', async (req, res) => {
   })
 
   const enriched = assigns.map(a => {
+    const feeAmount = a.amount !== null && a.amount !== undefined ? a.amount : a.optionalFee.amount
     const paid    = a.payments.reduce((s, p) => s + p.amountPaid, 0)
-    const balance = a.optionalFee.amount - paid
-    return { ...a, paid, balance }
+    const balance = feeAmount - paid
+    return {
+      ...a,
+      amount: feeAmount,
+      paid,
+      balance,
+      optionalFee: {
+        ...a.optionalFee,
+        amount: feeAmount,
+      }
+    }
   })
 
   res.json(enriched)
@@ -97,12 +142,15 @@ router.post('/assigns', adminOnly, async (req, res) => {
   if (!optionalFeeId)   return res.status(400).json({ error: 'optionalFeeId is required' })
   if (!studentIds?.length) return res.status(400).json({ error: 'Select at least one student' })
 
+  const fee = await prisma.optionalFee.findUnique({ where: { id: optionalFeeId } })
+  if (!fee) return res.status(404).json({ error: 'Optional fee not found' })
+
   const ids = Array.isArray(studentIds) ? studentIds : [studentIds]
 
   const results = await Promise.allSettled(
     ids.map(studentId =>
       prisma.optionalFeeAssign.create({
-        data: { studentId, optionalFeeId, termId },
+        data: { studentId, optionalFeeId, termId, amount: fee.amount },
         include: { optionalFee: true, student: true }
       })
     )
@@ -112,10 +160,9 @@ router.post('/assigns', adminOnly, async (req, res) => {
   const skipped = results.filter(r => r.status === 'rejected').length
 
   if (created.length) {
-    const fee = created[0].optionalFee
     await log({
       req, action: 'CREATE', entity: 'OptionalFeeAssign',
-      detail: `Assigned "${fee.name}" to ${created.length} student(s) for termId ${termId}`,
+      detail: `Assigned "${fee.name}" (₦${fee.amount}) to ${created.length} student(s) for termId ${termId}`,
       metadata: { optionalFeeId, termId, studentIds: created.map(c => c.studentId) }
     })
   }
@@ -148,8 +195,9 @@ router.post('/payments', adminOnly, async (req, res) => {
   })
   if (!assign) return res.status(404).json({ error: 'Assignment not found' })
 
+  const feeAmount = assign.amount !== null && assign.amount !== undefined ? assign.amount : assign.optionalFee.amount
   const alreadyPaid = assign.payments.reduce((s, p) => s + p.amountPaid, 0)
-  const remaining   = assign.optionalFee.amount - alreadyPaid
+  const remaining   = feeAmount - alreadyPaid
   if (parseFloat(amountPaid) > remaining + 0.01) {
     return res.status(400).json({ error: `Amount exceeds remaining balance of ₦${remaining.toFixed(2)}` })
   }

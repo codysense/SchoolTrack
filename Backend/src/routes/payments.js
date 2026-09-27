@@ -88,9 +88,10 @@ router.get("/summary", staffOnly, async (req, res) => {
       };
     }
     const paid = a.payments.reduce((s, p) => s + p.amountPaid, 0);
-    optFeeMap[fid].expected += a.optionalFee.amount;
+    const feeAmt = a.amount !== null && a.amount !== undefined ? a.amount : a.optionalFee.amount;
+    optFeeMap[fid].expected += feeAmt;
     optFeeMap[fid].collected += paid;
-    optFeeMap[fid].outstanding += a.optionalFee.amount - paid;
+    optFeeMap[fid].outstanding += feeAmt - paid;
     optFeeMap[fid].assignCount += 1;
   }
 

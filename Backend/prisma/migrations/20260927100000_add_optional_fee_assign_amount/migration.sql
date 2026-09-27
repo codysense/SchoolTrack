@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "OptionalFeeAssign" ADD COLUMN IF NOT EXISTS "amount" DOUBLE PRECISION;

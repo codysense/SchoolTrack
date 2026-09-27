@@ -100,6 +100,28 @@ router.put("/terms/:termId/set-current", adminOnly, async (req, res) => {
   });
   if (!term) return res.status(404).json({ error: "Term not found" });
 
+  const outgoingTerm = await prisma.term.findFirst({
+    where: { isCurrent: true },
+  });
+
+  // Seal snapshots and optional fees for the outgoing term
+  if (outgoingTerm && outgoingTerm.id !== termId) {
+    const { lockAllStudentsTermFee } = await import("../utils/scholarship.js");
+    await lockAllStudentsTermFee(prisma, outgoingTerm.id);
+
+    // Lock optional fees
+    const outgoingAssigns = await prisma.optionalFeeAssign.findMany({
+      where: { termId: outgoingTerm.id, amount: null },
+      include: { optionalFee: true },
+    });
+    for (const a of outgoingAssigns) {
+      await prisma.optionalFeeAssign.update({
+        where: { id: a.id },
+        data: { amount: a.optionalFee.amount },
+      });
+    }
+  }
+
   // Clear all current flags
   await prisma.term.updateMany({
     where: { isCurrent: true },
@@ -238,7 +260,8 @@ router.get("/terms/:termId/summary", async (req, res) => {
         assignCount: 0,
       };
     }
-    optFeeMap[id].expected += a.optionalFee.amount;
+    const optAmt = a.amount !== null && a.amount !== undefined ? a.amount : a.optionalFee.amount;
+    optFeeMap[id].expected += optAmt;
     optFeeMap[id].collected += a.payments.reduce((s, p) => s + p.amountPaid, 0);
     optFeeMap[id].assignCount += 1;
   }
