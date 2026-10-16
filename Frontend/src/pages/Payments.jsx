@@ -41,7 +41,7 @@ export default function Payments() {
   const [form, setForm] = useState({
     studentId: "",
     termId: "",
-    optionalFeeAssignId: "",
+    optionalFeeAssignIds: [],
     amountPaid: "",
     paymentMethod: "cash",
     note: "",
@@ -85,11 +85,7 @@ export default function Payments() {
       api(`/optional-fees/assigns?studentId=${form.studentId}&termId=${form.termId}`)
         .then((res) => {
           setStudentAssigns(res);
-          if (res.length > 0) {
-            setForm((p) => ({ ...p, optionalFeeAssignId: res[0].id }));
-          } else {
-            setForm((p) => ({ ...p, optionalFeeAssignId: "" }));
-          }
+          setForm((p) => ({ ...p, optionalFeeAssignIds: [] }));
         })
         .catch((err) => console.error(err))
         .finally(() => setAssignLoading(false));
@@ -105,7 +101,7 @@ export default function Payments() {
     setForm({
       studentId: "",
       termId: currentTerm?.id || "",
-      optionalFeeAssignId: "",
+      optionalFeeAssignIds: [],
       amountPaid: "",
       paymentMethod: "cash",
       note: "",
@@ -121,12 +117,19 @@ export default function Payments() {
     const amt = parseFloat(form.amountPaid);
     if (amt <= 0 || isNaN(amt)) return setFormErr("Amount must be greater than 0");
 
+    let allocations = [];
     if (feeCategory === "OPTIONAL") {
-      if (!form.optionalFeeAssignId) return setFormErr("Select an assigned optional fee");
-      const selectedAssign = studentAssigns.find((a) => a.id === form.optionalFeeAssignId);
-      if (selectedAssign && amt > selectedAssign.balance + 0.01) {
-        return setFormErr(`Max payable for ${selectedAssign.optionalFee.name} is ₦${selectedAssign.balance.toLocaleString()}`);
-      }
+      const selectedAssigns = studentAssigns.filter((a) => form.optionalFeeAssignIds.includes(a.id) && a.balance > 0);
+      const maxPayable = selectedAssigns.reduce((sum, a) => sum + a.balance, 0);
+      if (!selectedAssigns.length) return setFormErr("Select at least one assigned optional fee with an outstanding balance");
+      if (amt > maxPayable + 0.01) return setFormErr(`Maximum payable for selected fees is ₦${maxPayable.toLocaleString()}`);
+
+      let remaining = amt;
+      allocations = selectedAssigns.map((a) => {
+        const allocation = Math.min(remaining, a.balance);
+        remaining = Math.max(0, remaining - allocation);
+        return { optionalFeeAssignId: a.id, amountPaid: allocation };
+      }).filter((a) => a.amountPaid > 0);
     }
 
     setSaving(true);
@@ -135,9 +138,9 @@ export default function Payments() {
         await api("/optional-fees/payments", {
           method: "POST",
           body: {
-            optionalFeeAssignId: form.optionalFeeAssignId,
+            allocations,
             studentId: form.studentId,
-            amountPaid: amt,
+            termId: form.termId,
             paymentMethod: form.paymentMethod,
             note: form.note || null,
           },
@@ -176,7 +179,8 @@ export default function Payments() {
     : null;
 
   // Selected optional fee assignment
-  const selectedAssign = studentAssigns.find((a) => a.id === form.optionalFeeAssignId);
+  const selectedAssigns = studentAssigns.filter((a) => form.optionalFeeAssignIds.includes(a.id));
+  const optionalMax = selectedAssigns.reduce((sum, a) => sum + a.balance, 0);
 
   //print Receipt
   const printReceipt = (payment) => {
@@ -990,10 +994,10 @@ export default function Payments() {
             </div>
           </FormField>
 
-          {/* If Optional Fee mode: Select assigned optional fee */}
+          {/* If Optional Fee mode: Select assigned optional fees */}
           {feeCategory === "OPTIONAL" && (
             <FormField
-              label="Assigned Optional Fee"
+              label="Assigned Optional Fees"
               hint={
                 assignLoading
                   ? "Loading assigned fees…"
@@ -1002,26 +1006,20 @@ export default function Payments() {
                     : undefined
               }
             >
-              <select
-                value={form.optionalFeeAssignId}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, optionalFeeAssignId: e.target.value }))
-                }
-                style={inputStyle}
-                disabled={assignLoading || studentAssigns.length === 0}
-              >
-                <option value="">Select optional fee…</option>
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
                 {studentAssigns.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.optionalFee.name} (Fee: {fmt(a.optionalFee.amount)}, Balance: {fmt(a.balance)})
-                  </option>
+                  <label key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderBottom: "1px solid #f3f4f6", cursor: a.balance > 0 ? "pointer" : "not-allowed", opacity: a.balance > 0 ? 1 : 0.55 }}>
+                    <input type="checkbox" disabled={assignLoading || a.balance <= 0} checked={form.optionalFeeAssignIds.includes(a.id)} onChange={(e) => setForm((p) => ({ ...p, optionalFeeAssignIds: e.target.checked ? [...p.optionalFeeAssignIds, a.id] : p.optionalFeeAssignIds.filter((id) => id !== a.id) }))} />
+                    <span style={{ flex: 1 }}>{a.optionalFee.name}</span>
+                    <span style={{ color: "#6b7280", fontSize: 12 }}>Balance: {fmt(a.balance)}</span>
+                  </label>
                 ))}
-              </select>
+              </div>
             </FormField>
           )}
 
           {/* Optional Fee live balance hint */}
-          {feeCategory === "OPTIONAL" && selectedAssign && (
+          {feeCategory === "OPTIONAL" && selectedAssigns.length > 0 && (
             <div
               style={{
                 background: "#fef3c7",
@@ -1032,19 +1030,8 @@ export default function Payments() {
                 fontSize: 13,
               }}
             >
-              <div style={{ marginBottom: 4, fontWeight: 700, color: "#92400e" }}>
-                ⚡ {selectedAssign.optionalFee.name}
-              </div>
-              <span style={{ color: "#78350f" }}>Fee Amount: </span>
-              <strong>{fmt(selectedAssign.optionalFee.amount)}</strong>
-              <span style={{ color: "#78350f", margin: "0 8px" }}>·</span>
-              <span style={{ color: "#78350f" }}>Already Paid: </span>
-              <strong style={{ color: "#10b981" }}>{fmt(selectedAssign.paid)}</strong>
-              <span style={{ color: "#78350f", margin: "0 8px" }}>·</span>
-              <span style={{ color: "#78350f" }}>Outstanding: </span>
-              <strong style={{ color: selectedAssign.balance > 0 ? "#b45309" : "#10b981" }}>
-                {fmt(selectedAssign.balance)}
-              </strong>
+              {selectedAssigns.map((a) => <div key={a.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 5 }}><strong>⚡ {a.optionalFee.name}</strong><span>Fee: {fmt(a.optionalFee.amount)} · Paid: {fmt(a.paid)} · Balance: <strong>{fmt(a.balance)}</strong></span></div>)}
+              <div style={{ borderTop: "1px solid #fde68a", paddingTop: 7, marginTop: 7, color: "#78350f" }}>Selected fees outstanding: <strong>{fmt(optionalMax)}</strong></div>
             </div>
           )}
 
@@ -1088,12 +1075,12 @@ export default function Payments() {
           )}
 
           <FormField
-            label={`Amount Paid (₦)${feeCategory === 'OPTIONAL' && selectedAssign ? ` — max ${fmt(selectedAssign.balance)}` : ''}`}
+            label={`Amount Paid (₦)${feeCategory === 'OPTIONAL' && selectedAssigns.length ? ` — max ${fmt(optionalMax)}` : ''}`}
           >
             <input
               type="number"
               min="0"
-              max={feeCategory === "OPTIONAL" && selectedAssign ? selectedAssign.balance : undefined}
+              max={feeCategory === "OPTIONAL" && selectedAssigns.length ? optionalMax : undefined}
               value={form.amountPaid}
               onChange={(e) =>
                 setForm((p) => ({ ...p, amountPaid: e.target.value }))
@@ -1142,7 +1129,7 @@ export default function Payments() {
             <ActionButton
               disabled={
                 saving ||
-                (feeCategory === "OPTIONAL" && (!form.optionalFeeAssignId || studentAssigns.length === 0))
+                (feeCategory === "OPTIONAL" && (!form.optionalFeeAssignIds.length || studentAssigns.length === 0))
               }
               onClick={record}
             >

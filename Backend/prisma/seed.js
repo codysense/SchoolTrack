@@ -71,11 +71,11 @@ async function main() {
 
   // Admin
   await prisma.user.upsert({
-    where: { email: "admin@markaztaaliim.com" },
+    where: { email: "admin@codisense.ng" },
     update: {},
     create: {
-      email: "admin@markaztaaliim.com",
-      password: await bcrypt.hash("oedemaje22", 10),
+      email: "admin@codisense.ng",
+      password: await bcrypt.hash("pass4D3mo", 10),
       name: "School Admin",
       role: "ADMIN",
     },
