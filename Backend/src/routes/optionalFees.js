@@ -187,40 +187,48 @@ router.delete('/assigns/:id', adminOnly, async (req, res) => {
 // ── Payments toward optional fees ─────────────────────────────────────────────
 
 router.post('/payments', adminOnly, async (req, res) => {
-  const { optionalFeeAssignId, studentId, amountPaid, paymentMethod, note } = req.body
-
-  const assign = await prisma.optionalFeeAssign.findUnique({
-    where: { id: optionalFeeAssignId },
-    include: { optionalFee: true, payments: true, student: { include: { class: true } } }
-  })
-  if (!assign) return res.status(404).json({ error: 'Assignment not found' })
-
-  const feeAmount = assign.amount !== null && assign.amount !== undefined ? assign.amount : assign.optionalFee.amount
-  const alreadyPaid = assign.payments.reduce((s, p) => s + p.amountPaid, 0)
-  const remaining   = feeAmount - alreadyPaid
-  if (parseFloat(amountPaid) > remaining + 0.01) {
-    return res.status(400).json({ error: `Amount exceeds remaining balance of ₦${remaining.toFixed(2)}` })
+  const { optionalFeeAssignId, studentId, amountPaid, paymentMethod, note, termId } = req.body
+  const allocations = Array.isArray(req.body.allocations)
+    ? req.body.allocations
+    : [{ optionalFeeAssignId, amountPaid }]
+  if (!studentId || !allocations.length || allocations.some(a => !a.optionalFeeAssignId || !Number.isFinite(Number(a.amountPaid)) || Number(a.amountPaid) <= 0)) {
+    return res.status(400).json({ error: 'Valid student and fee payment allocations are required' })
   }
 
-  const payment = await prisma.optionalFeePayment.create({
-    data: {
-      studentId,
-      optionalFeeAssignId,
-      amountPaid:   parseFloat(amountPaid),
-      paymentMethod,
-      note:         note || null,
-      recordedById: req.user.id,
-    },
-    include: { optionalFeeAssign: { include: { optionalFee: true } } }
+  const result = await prisma.$transaction(async tx => {
+    const created = []
+    for (const allocation of allocations) {
+      const assign = await tx.optionalFeeAssign.findUnique({
+        where: { id: allocation.optionalFeeAssignId },
+        include: { optionalFee: true, payments: true, student: true }
+      })
+      if (!assign || assign.studentId !== studentId || (termId && assign.termId !== termId)) throw new Error('Assignment does not belong to this student and term')
+      const feeAmount = assign.amount ?? assign.optionalFee.amount
+      const alreadyPaid = assign.payments.reduce((sum, p) => sum + p.amountPaid, 0)
+      const remaining = feeAmount - alreadyPaid
+      const value = Number(allocation.amountPaid)
+      if (value > remaining + 0.01) throw new Error(`Amount exceeds remaining balance for ${assign.optionalFee.name} (₦${remaining.toFixed(2)})`)
+      const payment = await tx.optionalFeePayment.create({
+        data: { studentId, optionalFeeAssignId: assign.id, amountPaid: value, paymentMethod, note: note || null, recordedById: req.user.id },
+        include: { optionalFeeAssign: { include: { optionalFee: true } } }
+      })
+      created.push({ payment, assign })
+    }
+    return created
+  }).catch(error => {
+    if (error.message.startsWith('Assignment does not belong') || error.message.startsWith('Amount exceeds remaining')) return { error: error.message }
+    throw error
   })
+  if (result.error) return res.status(400).json({ error: result.error })
 
-  await log({
-    req, action: 'CREATE', entity: 'OptionalFeePayment', entityId: payment.id,
-    detail: `Recorded ₦${amountPaid} for "${assign.optionalFee.name}" — ${assign.student.name}`,
-    metadata: { optionalFeeAssignId, studentId, amountPaid, paymentMethod }
-  })
-
-  res.status(201).json(payment)
+  for (const { payment, assign } of result) {
+    await log({
+      req, action: 'CREATE', entity: 'OptionalFeePayment', entityId: payment.id,
+      detail: `Recorded ₦${payment.amountPaid} for "${assign.optionalFee.name}" — ${assign.student.name}`,
+      metadata: { optionalFeeAssignId: assign.id, studentId, amountPaid: payment.amountPaid, paymentMethod }
+    })
+  }
+  res.status(201).json(result.map(r => r.payment))
 })
 
 export default router
