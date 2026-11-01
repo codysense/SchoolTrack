@@ -473,11 +473,13 @@ export default function Setup() {
             <ActionButton onClick={openCreate}>+ Add User</ActionButton>
           </div>
 
-          <div className="setup-table-scroll"
+          <div
+            className="setup-table-scroll"
             style={{
               background: "#fff",
               borderRadius: 10,
-              overflow: "hidden",
+              overflowX: "auto",
+              overflowY: "hidden",
               boxShadow: "0 1px 4px rgba(0,0,0,.06)",
             }}
           >
@@ -541,7 +543,10 @@ export default function Setup() {
                       {u.teacher?.subjectName || "—"}
                     </td>
                     <td style={{ padding: "10px 16px" }}>
-                      <div className="setup-user-actions" style={{ display: "flex", gap: 6 }}>
+                      <div
+                        className="setup-user-actions"
+                        style={{ display: "flex", gap: 6 }}
+                      >
                         <ActionButton
                           size="sm"
                           variant="secondary"
