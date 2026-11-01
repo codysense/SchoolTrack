@@ -319,11 +319,34 @@ export default function Setup() {
   };
 
   return (
-    <div>
+    <div className="setup-page">
+      <style>{`
+        .setup-tabs { max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
+        .setup-tabs button { flex: 0 0 auto; white-space: nowrap; }
+        .setup-school-card { box-sizing: border-box; width: 100%; }
+        .setup-table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .setup-table-scroll table { min-width: 680px; }
+        .setup-assessment-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        .setup-category-table { min-width: 0 !important; }
+        .setup-page input, .setup-page select { max-width: 100%; box-sizing: border-box; }
+        @media (max-width: 600px) {
+          .setup-page h2 { margin-bottom: 14px !important; }
+          .setup-tabs { width: 100% !important; margin-bottom: 16px !important; }
+          .setup-tabs button { padding: 9px 12px !important; }
+          .setup-school-card { padding: 18px !important; }
+          .setup-users-actions { justify-content: stretch !important; }
+          .setup-users-actions button, .setup-assessment-header button { width: 100%; }
+          .setup-assessment-header { align-items: stretch; }
+          .setup-assessment-header h3 { margin: 0; }
+          .setup-category-card { padding: 14px !important; }
+          .setup-user-actions { flex-wrap: wrap; }
+        }
+      `}</style>
       <h2 style={{ marginTop: 0, marginBottom: 20 }}>Setup</h2>
       <ErrorMessage message={error} />
       {/* Tabs */}
       <div
+        className="setup-tabs"
         style={{
           display: "flex",
           gap: 0,
@@ -361,6 +384,7 @@ export default function Setup() {
       {/* ── School Info tab ── */}
       {tab === "school" && (
         <div
+          className="setup-school-card"
           style={{
             background: "#fff",
             borderRadius: 12,
@@ -439,6 +463,7 @@ export default function Setup() {
       {tab === "users" && (
         <>
           <div
+            className="setup-users-actions"
             style={{
               display: "flex",
               justifyContent: "flex-end",
@@ -448,7 +473,7 @@ export default function Setup() {
             <ActionButton onClick={openCreate}>+ Add User</ActionButton>
           </div>
 
-          <div
+          <div className="setup-table-scroll"
             style={{
               background: "#fff",
               borderRadius: 10,
@@ -516,7 +541,7 @@ export default function Setup() {
                       {u.teacher?.subjectName || "—"}
                     </td>
                     <td style={{ padding: "10px 16px" }}>
-                      <div style={{ display: "flex", gap: 6 }}>
+                      <div className="setup-user-actions" style={{ display: "flex", gap: 6 }}>
                         <ActionButton
                           size="sm"
                           variant="secondary"
@@ -557,6 +582,7 @@ export default function Setup() {
       {tab === "assessment" && (
         <div>
           <div
+            className="setup-assessment-header"
             style={{
               display: "flex",
               justifyContent: "space-between",
@@ -584,6 +610,7 @@ export default function Setup() {
           {Object.entries(assessmentCategories).map(([type, items]) => (
             <div
               key={type}
+              className="setup-category-card"
               style={{
                 background: "#fff",
                 borderRadius: 10,
@@ -595,6 +622,7 @@ export default function Setup() {
               <h4>{type}</h4>
 
               <table
+                className="setup-category-table"
                 style={{
                   width: "100%",
                   borderCollapse: "collapse",
